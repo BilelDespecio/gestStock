@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "594473688320",
+    "project_id": "gestionstock-3c752",
+    "storage_bucket": "gestionstock-3c752.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:594473688320:android:ab738c651e70305faae7e5",
+        "android_client_info": {
+          "package_name": "com.example.gest_stock"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyCDEIGz-mYEjzc9yKkM-FOkd_-1wJ7KsRk"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

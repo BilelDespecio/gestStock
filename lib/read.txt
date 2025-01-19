@@ -1,0 +1,55 @@
+1. Produits
+Collection contenant les informations principales sur les produits en stock.
+
+Champ	Type	Description
+id	string	Identifiant unique généré automatiquement.
+nom	string	Nom du produit.
+description	string	Description détaillée du produit.
+quantité	number	Quantité actuelle en stock.
+prix	number	Prix unitaire du produit.
+seuil_minimum	number	Stock minimum avant alerte.
+création_date	timestamp	Date de création de l'enregistrement.
+Fonctions suggérées :
+
+Ajouter un produit.
+Mettre à jour les informations d’un produit.
+Vérifier le seuil minimal pour déclencher des alertes.
+2. Approvisionnements
+Collection pour suivre les ajouts de produits en stock.
+
+Champ	Type	Description
+id	string	Identifiant unique généré automatiquement.
+produit_id	string	Référence au produit (ID de la collection Produits).
+quantité	number	Quantité ajoutée lors de l’approvisionnement.
+date	timestamp	Date de l'approvisionnement.
+fournisseur	string	Nom ou informations sur le fournisseur.
+Fonctions suggérées :
+
+Ajouter un approvisionnement.
+Générer un rapport des approvisionnements sur une période donnée.
+Mettre à jour la quantité dans la collection Produits en fonction des approvisionnements.
+3. Déstockages
+Collection pour suivre les sorties de produits du stock.
+
+Champ	Type	Description
+id	string	Identifiant unique généré automatiquement.
+produit_id	string	Référence au produit (ID de la collection Produits).
+quantité	number	Quantité retirée lors du déstockage.
+date	timestamp	Date de déstockage.
+raison	string	Motif de la sortie (vente, perte, etc.).
+Fonctions suggérées :
+
+Ajouter un déstockage.
+Générer un rapport des déstockages par période ou par produit.
+Vérifier si le stock est suffisant avant un déstockage.
+Étapes suivantes
+Définir les relations :
+
+Utiliser les champs produit_id dans Approvisionnements et Déstockages pour établir un lien direct avec la collection Produits.
+Vous pouvez utiliser un subcollection si ces relations doivent être plus granulaires.
+Écrire les fonctions :
+
+Voulez-vous commencer par l'ajout d'un produit ou par une opération spécifique ? 😊
+Sécuriser les accès :
+
+Ajouter des règles Firestore pour gérer les permissions selon les rôles : admin, manager, etc.
