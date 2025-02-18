@@ -34,9 +34,13 @@ class _AuthPageState extends State<AuthPage> {
 
         // Redirection en fonction du rôle
         if (role == 'admin') {
-          Navigator.pushReplacementNamed(context, '/adminDashboard');
+          Navigator.pushReplacementNamed(context, '/homePageAdmin');
         } else if (role == 'user') {
-          Navigator.pushReplacementNamed(context, '/dashboard');
+          Navigator.pushReplacementNamed(context, '/homePageMagazinier');
+        } else if (role == 'vendeur') {
+          Navigator.pushReplacementNamed(context, '/homePageVendeur');
+        } else if (role == 'caissier') {
+          Navigator.pushReplacementNamed(context, '/homePageCaisier');
         } else {
           setState(() {
             _errorMessage = 'Rôle inconnu. Contactez l’administrateur.';

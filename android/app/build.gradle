@@ -8,9 +8,9 @@ plugins {
 }
 
 android {
-    namespace = "com.example.gest_stock"
-    compileSdk = flutter.compileSdkVersion // Utilise la version Flutter pour compileSdk
-    ndkVersion = flutter.ndkVersion // Utilise la version Flutter pour NDK
+    namespace = "com.example.gest_stock"  // Remplace par ton vrai package name
+    compileSdk = flutter.compileSdkVersion
+    ndkVersion = flutter.ndkVersion
 
     compileOptions {
         sourceCompatibility = JavaVersion.VERSION_1_8 // Compatibilité Java 8
@@ -23,10 +23,10 @@ android {
 
     defaultConfig {
         applicationId = "com.example.gest_stock" // Identifiant unique de l'application
-        minSdk 23 // Minimum SDK supporté
-        targetSdk = flutter.targetSdkVersion // Utilise la version Flutter pour targetSdk
-        versionCode = flutter.versionCode // Numéro de version
-        versionName = flutter.versionName // Nom de la version
+        minSdk 23
+        targetSdk = flutter.targetSdkVersion
+        versionCode = flutter.versionCode
+        versionName = flutter.versionName
     }
 
     buildTypes {

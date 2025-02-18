@@ -65,7 +65,7 @@ class _ApprovisionnementPageState extends State<ApprovisionnementPage> {
 
     final message = Message()
       ..from = Address('hounganbilel@gmail.com', 'Gest Stock')
-      ..recipients.add('despecio6@example.com') // Remplacez par l'adresse e-mail du destinataire
+      ..recipients.add('despecio6@gmail.com') // Remplacez par l'adresse e-mail du destinataire
       ..subject = 'Nouvel Approvisionnement : ${produit['nom']}'
       ..text = 'Un nouvel approvisionnement a été ajouté :\n\n'
           'Produit : ${produit['nom']}\n'

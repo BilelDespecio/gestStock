@@ -53,3 +53,7 @@ Voulez-vous commencer par l'ajout d'un produit ou par une opération spécifique
 Sécuriser les accès :
 
 Ajouter des règles Firestore pour gérer les permissions selon les rôles : admin, manager, etc.
+
+
+
+

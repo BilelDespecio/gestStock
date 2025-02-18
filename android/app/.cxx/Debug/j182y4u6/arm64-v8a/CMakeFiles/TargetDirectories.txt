@@ -1,0 +1,2 @@
+/media/bilel/D1/Bilel/PROJET/android/gestStock/gest_stock/android/app/.cxx/Debug/j182y4u6/arm64-v8a/CMakeFiles/edit_cache.dir
+/media/bilel/D1/Bilel/PROJET/android/gestStock/gest_stock/android/app/.cxx/Debug/j182y4u6/arm64-v8a/CMakeFiles/rebuild_cache.dir
