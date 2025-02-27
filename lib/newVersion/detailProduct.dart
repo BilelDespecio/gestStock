@@ -7,7 +7,7 @@ class DetailProduitPage extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final String gamme = produit['gamme'] ?? '';
+    
     final String imageUrl = produit['image'] ?? '';
     final String nomProduit = produit['nom'] ?? 'Nom inconnu';
     final double prix = produit['prixVente']?.toDouble() ?? 0;
@@ -15,6 +15,9 @@ class DetailProduitPage extends StatelessWidget {
     final int seuilCritique = produit['seuil_critique'] ?? 0;
     final int seuilAlerte = produit['seuil_alerte'] ?? 0;
     final String description = produit['description'] ?? "Aucune description disponible.";
+    final String type = produit['type'] ?? "Type inconnu";
+    final String poids = produit['poids'] ?? ' Poids inconnu';
+    final String gamme = produit['gamme'] ?? 'Gamme inconnue';
 
     // Déterminer l'état du stock
     String stockStatus = "En stock";
@@ -30,7 +33,9 @@ class DetailProduitPage extends StatelessWidget {
     return Scaffold(
       appBar: AppBar(
         title: Text(nomProduit),
-        backgroundColor: Colors.green,
+         backgroundColor: Colors.blue.shade800, // Bleu foncé pour un aspect pro
+        centerTitle: true,
+        elevation: 4,
       ),
       body: SingleChildScrollView(
         child: Column(
@@ -68,7 +73,7 @@ class DetailProduitPage extends StatelessWidget {
                 children: [
                    Text(
                     gamme,
-                    style: const TextStyle(fontSize: 15, fontWeight: FontWeight.bold),
+                    style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: Colors.blue),
                   ),
                   Text(
                     nomProduit,
@@ -80,6 +85,7 @@ class DetailProduitPage extends StatelessWidget {
                     style: const TextStyle(fontSize: 22, fontWeight: FontWeight.bold, color: Colors.green),
                   ),
                   const SizedBox(height: 8),
+
                   Row(
                     children: [
                       Text("Stock : $quantite unités", style: const TextStyle(fontSize: 16)),
@@ -88,6 +94,14 @@ class DetailProduitPage extends StatelessWidget {
                         label: Text(stockStatus, style: const TextStyle(color: Colors.white)),
                         backgroundColor: stockColor,
                       ),
+                    ],
+                  ),
+                  SizedBox(height: 5,),
+                  Row(
+                    children: [
+                      Text(" $type ", style: const TextStyle(fontSize: 16)),
+                      const SizedBox(width: 10),
+                      Text(" $poids ", style: const TextStyle(fontSize: 16))
                     ],
                   ),
                   const SizedBox(height: 16),
@@ -109,7 +123,7 @@ class DetailProduitPage extends StatelessWidget {
                       onPressed: () {
                         // Action à définir (ex: ajouter au panier)
                         ScaffoldMessenger.of(context).showSnackBar(
-                          const SnackBar(content: Text("Produit ajouté au panier")),
+                          const SnackBar(content: Text("Cette fonctionnalité est en mise à jour")),
                         );
                       },
                       icon: const Icon(Icons.shopping_cart),

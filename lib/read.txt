@@ -55,5 +55,9 @@ Sécuriser les accès :
 Ajouter des règles Firestore pour gérer les permissions selon les rôles : admin, manager, etc.
 
 
+///////new add
+  *Vendeur*
+    -faire une vente
+     1. si le vendeur au cours de l'enregistreent d'une d'une, le boutons retour sauvegarde autoatiqueent la vente en brouillon
 
 

@@ -1,6 +1,7 @@
 import 'dart:io';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
+import 'package:gest_stock/newVersion/convertWebp.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:mobile_scanner/mobile_scanner.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
@@ -18,8 +19,10 @@ class _AjouterProduitPageState extends State<AjouterProduitPage> {
   final TextEditingController seuilAlerteController = TextEditingController();
   final TextEditingController codeBarreController = TextEditingController();
   final TextEditingController gammeController = TextEditingController();
+  final TextEditingController poidsController = TextEditingController();
+  final TextEditingController marketPriceController = TextEditingController();
+  final TextEditingController descriptionController = TextEditingController();
 
-// Liste des types de produits
   final List<String> typesDeProduits = [
     'Savon',
     'Gommage',
@@ -29,9 +32,23 @@ class _AjouterProduitPageState extends State<AjouterProduitPage> {
     'Sérum',
     'Masque',
     'Shampooing',
+    'Lait',
+    'Mèche',
+    'Gellule',
+    'Parfum',
+    'Gel de Douche'
+        'Déodorant'
+        'Grattoir'
   ];
 
-  String? _selectedType; // Variable pour stocker la sélection
+  final List<Map<String, String>> etatsProduits = [
+    {'label': 'Poids', 'value': 'g'},
+    {'label': 'Quantité', 'value': 'ml'},
+    {'label': 'Nombre', 'value': 'pcs'}
+  ];
+
+  String? _selectedType;
+  String? _selectedEtat;
   File? _image;
   final ImagePicker _picker = ImagePicker();
 
@@ -60,15 +77,48 @@ class _AjouterProduitPageState extends State<AjouterProduitPage> {
     );
   }
 
-  /// Fonction pour sélectionner une image depuis la galerie
+/// Fonction pour sélectionner une image depuis la galerie ou prendre une photo
   Future<void> pickImage() async {
-    final pickedFile = await _picker.pickImage(source: ImageSource.gallery);
-
-    if (pickedFile != null) {
-      setState(() {
-        _image = File(pickedFile.path);
-      });
-    }
+    showModalBottomSheet(
+      context: context,
+      builder: (context) => Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          ListTile(
+            leading: Icon(Icons.photo_library),
+            title: Text('Galerie'),
+            onTap: () async {
+              Navigator.pop(context);
+              final pickedFile = await _picker.pickImage(source: ImageSource.gallery);
+              if (pickedFile != null) {
+                File? webpImage = await convertImageToWebP(File(pickedFile.path));
+                if (webpImage != null) {
+                  setState(() {
+                    _image = webpImage;
+                  });
+                }
+              }
+            },
+          ),
+          ListTile(
+            leading: Icon(Icons.camera_alt),
+            title: Text('Appareil Photo'),
+            onTap: () async {
+              Navigator.pop(context);
+              final pickedFile = await _picker.pickImage(source: ImageSource.camera);
+              if (pickedFile != null) {
+                File? webpImage = await convertImageToWebP(File(pickedFile.path));
+                if (webpImage != null) {
+                  setState(() {
+                    _image = webpImage;
+                  });
+                }
+              }
+            },
+          ),
+        ],
+      ),
+    );
   }
 
   /// Fonction pour uploader l'image sur Supabase et récupérer l'URL
@@ -76,7 +126,7 @@ class _AjouterProduitPageState extends State<AjouterProduitPage> {
     try {
       final supabase = Supabase.instance.client;
       final String fileName =
-          "produits/${DateTime.now().millisecondsSinceEpoch}.jpg";
+          "produits/${DateTime.now().millisecondsSinceEpoch}.webp"; // Enregistre en WebP
 
       final response = await supabase.storage
           .from("images") // Remplace "images" par le nom de ton bucket Supabase
@@ -92,7 +142,6 @@ class _AjouterProduitPageState extends State<AjouterProduitPage> {
       return null;
     }
   }
-
   /// Fonction pour enregistrer un produit dans Firestore
   Future<void> enregistrerProduit() async {
     String gamme = gammeController.text;
@@ -102,6 +151,9 @@ class _AjouterProduitPageState extends State<AjouterProduitPage> {
     int seuilCritique = int.tryParse(seuilCritiqueController.text) ?? 0;
     int seuilAlerte = int.tryParse(seuilAlerteController.text) ?? 0;
     String codeBarre = codeBarreController.text;
+    String poids = '${poidsController.text} ${_selectedEtat!}';
+    double marketPrice = double.tryParse(marketPriceController.text) ?? 0;
+    String description = descriptionController.text;
 
     // Vérifier si une image a été sélectionnée
     if (_image == null) {
@@ -128,6 +180,9 @@ class _AjouterProduitPageState extends State<AjouterProduitPage> {
       'seuil_alerte': seuilAlerte,
       'code_barre': codeBarre,
       'imageUrl': imageUrl, // Stocker l'URL de l'image dans Firestore
+      'poids': poids,
+      'marketPrice': marketPrice,
+      'description': description,
     };
 
     // Enregistrer dans Firestore
@@ -136,8 +191,22 @@ class _AjouterProduitPageState extends State<AjouterProduitPage> {
         .doc(produitNom)
         .set(produitData);
 
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text('Produit enregistré avec succès !')),
+    showDialog(
+      context: context,
+      builder: (BuildContext context) {
+        return AlertDialog(
+          title: Text("Succès"),
+          content: Text("Produit enregistré avec succès !"),
+          actions: [
+            TextButton(
+              onPressed: () {
+                Navigator.of(context).pop();
+              },
+              child: Text("OK"),
+            ),
+          ],
+        );
+      },
     );
 
     print("Produit ajouté : $produitData");
@@ -146,7 +215,12 @@ class _AjouterProduitPageState extends State<AjouterProduitPage> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: Text("Ajouter un Produit")),
+      appBar: AppBar(
+        title: Text("Ajouter un Produit"),
+        backgroundColor: Colors.blue.shade800, // Bleu foncé pour un aspect pro
+        centerTitle: true,
+        elevation: 4,
+      ),
       body: Padding(
         padding: EdgeInsets.all(16.0),
         child: SingleChildScrollView(
@@ -157,10 +231,10 @@ class _AjouterProduitPageState extends State<AjouterProduitPage> {
                   decoration: InputDecoration(labelText: "Gamme")),
               TextField(
                   controller: nomController,
-                  decoration: InputDecoration(labelText: "Nom du produit")),
+                  decoration: InputDecoration(labelText: "Variété")),
               // Sélecteur du type de produit
               DropdownButtonFormField<String>(
-                decoration: InputDecoration(labelText: "Type de produit"),
+                decoration: InputDecoration(labelText: "Catégorie"),
                 value: _selectedType,
                 onChanged: (newValue) {
                   setState(() {
@@ -178,11 +252,28 @@ class _AjouterProduitPageState extends State<AjouterProduitPage> {
               /* TextField(
                   controller: prixController,
                   decoration: InputDecoration(labelText: "Prix de vente"),
-                  keyboardType: TextInputType.number),
-             TextField(
-                  controller: quantiteController,
-                  decoration: InputDecoration(labelText: "Quantité disponible"),
                   keyboardType: TextInputType.number),*/
+              DropdownButtonFormField<String>(
+  decoration: InputDecoration(labelText: "État du produit"),
+  value: _selectedEtat,
+  onChanged: (newValue) => setState(() => _selectedEtat = newValue),
+  items: etatsProduits.map((etat) {
+    return DropdownMenuItem<String>(
+      value: etat['value'], // Valeur enregistrée
+      child: Text(etat['label']!), // Texte affiché
+    );
+  }).toList(),
+),
+              TextField(
+                controller: poidsController,
+                decoration: InputDecoration(
+                    labelText:
+                        _selectedEtat == "ml" ? "Volume (ml)" : "Poids (g)"),
+                keyboardType: TextInputType.number,
+              ),
+              TextField(
+                  controller: descriptionController,
+                  decoration: InputDecoration(labelText: "Description(usage et/ou composition)"),),
               TextField(
                   controller: seuilCritiqueController,
                   decoration: InputDecoration(labelText: "Seuil critique"),
@@ -190,6 +281,10 @@ class _AjouterProduitPageState extends State<AjouterProduitPage> {
               TextField(
                   controller: seuilAlerteController,
                   decoration: InputDecoration(labelText: "Seuil alerte"),
+                  keyboardType: TextInputType.number),
+TextField(
+                  controller: marketPriceController,
+                  decoration: InputDecoration(labelText: "Prix de vente du marché(en FCFA)"),
                   keyboardType: TextInputType.number),
 
               Row(

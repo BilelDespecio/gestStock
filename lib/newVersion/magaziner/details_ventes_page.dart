@@ -65,7 +65,7 @@ Future<void> _confirmerVente(BuildContext context) async {
     String client = vente['client'];
 
     return Scaffold(
-      appBar: AppBar(title: Text('Détail Vente ${vente.id}')),
+      appBar: AppBar(title: Text('Détail Vente ${vente.id}'), backgroundColor: Colors.blue.shade800, centerTitle: true, elevation: 4),
       body: Padding(
         padding: const EdgeInsets.all(16.0),
         child: Column(

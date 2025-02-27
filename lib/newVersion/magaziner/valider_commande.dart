@@ -30,6 +30,9 @@ class _ValiderCommandePageState extends State<ValiderCommandePage> {
         'name': article['name'],
         'prixTotal': article['prixTotal'],
         'quantite': article['quantite'],
+        'poids': article['poids'],
+        'quantity': article['quantity'],
+        'gamme': article['gamme'],
         'prixRevientUnitaire': 0.0,
         'prixVenteUnitaire': 0.0,
       });
@@ -152,7 +155,9 @@ Future<void> mettreAJourStock(String commandId, List<dynamic> articles) async {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: Text('Validation de la commande')),
+      appBar: AppBar(title: Text('Validation de la commande'), backgroundColor: Colors.blue.shade800, // Bleu foncé pour un aspect pro
+        centerTitle: true,
+        elevation: 4,),
       body: Padding(
         padding: EdgeInsets.all(16.0),
         child: Form(
@@ -165,7 +170,13 @@ Future<void> mettreAJourStock(String commandId, List<dynamic> articles) async {
                   itemBuilder: (context, index) {
                     return Card(
                       child: ListTile(
-                        title: Text('${_validatedArticles[index]['name']}'),
+                        title: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text('${_validatedArticles[index]['gamme']} ${_validatedArticles[index]['name']}'),
+                            Text('${_validatedArticles[index]['type']} ${_validatedArticles[index]['poids']}'),
+                          ],
+                        ),
                         subtitle: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
@@ -184,7 +195,7 @@ Future<void> mettreAJourStock(String commandId, List<dynamic> articles) async {
                               },
                             ),
                             TextFormField(
-                              initialValue: _validatedArticles[index]['quantite'].toString(),
+                              initialValue: _validatedArticles[index]['quantity'].toString(),
                               decoration: InputDecoration(labelText: 'Quantité'),
                               keyboardType: TextInputType.number,
                               onSaved: (value) {

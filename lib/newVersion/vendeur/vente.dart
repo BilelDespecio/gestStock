@@ -16,7 +16,7 @@ class _VentePageState extends State<VentePage> {
   Future<String> _genererIdVente() async {
     QuerySnapshot ventesValidees = await FirebaseFirestore.instance
         .collection('ventes')
-        .where('statut', isEqualTo: 'validé')
+        .where('statut', whereIn: ['validé', 'en attente'])
         .get();
     int numeroVente = ventesValidees.docs.length + 1;
     String date = DateTime.now().toIso8601String().split('T')[0];
@@ -190,7 +190,7 @@ class _VentePageState extends State<VentePage> {
     );
   }
 
-  // Fonction pour suspendre la vente en cours
+// Fonction pour suspendre une vente après avoir demandé le nom du client
   void _suspendreVente() async {
     if (_articlesSelectionnes.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
@@ -198,21 +198,37 @@ class _VentePageState extends State<VentePage> {
       );
       return;
     }
-    String venteId = await _genererIdVente();
+
+    // Afficher un showDialog pour demander le nom du client
+    String? clientName = await _demanderNomClient();
+    if (clientName == null || clientName.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Nom du client requis pour suspendre la vente!')),
+      );
+      return;
+    }
+
+    // Utiliser le nom du client comme ID du document
+    String venteId = clientName.trim().toLowerCase().replaceAll(' ', '_');
+
     try {
       await FirebaseFirestore.instance.collection('ventes').doc(venteId).set({
         'id': venteId,
+        'client': clientName,
         'articles': _articlesSelectionnes,
         'montantTotal': _montantTotal,
-        'statut': 'suspendue', // vente sauvegardée comme suspendue
+        'statut': 'suspendue',
         'date': Timestamp.now(),
       });
+
+      // Réinitialiser la vente actuelle
       setState(() {
         _articlesSelectionnes.clear();
         _montantTotal = 0.0;
       });
+
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Vente suspendue avec succès!')),
+        SnackBar(content: Text('Vente suspendue pour $clientName!')),
       );
     } catch (e) {
       ScaffoldMessenger.of(context).showSnackBar(
@@ -222,54 +238,103 @@ class _VentePageState extends State<VentePage> {
     }
   }
 
-  // Affiche la liste des ventes suspendues et permet d'en reprendre une
-  void _afficherVentesSuspendues() async {
-    QuerySnapshot querySnapshot = await FirebaseFirestore.instance
-        .collection('ventes')
-        .where('statut', isEqualTo: 'suspendue')
-        .get();
+// Fonction pour afficher un showDialog et demander le nom du client
+  Future<String?> _demanderNomClient() async {
+    TextEditingController _controller = TextEditingController();
 
-    if (querySnapshot.docs.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Aucune vente suspendue')),
-      );
-      return;
-    }
-
-    showDialog(
+    return showDialog<String>(
       context: context,
       builder: (context) {
-        return SimpleDialog(
-          title: Text('Ventes Suspendues'),
-          children: querySnapshot.docs.map((doc) {
-            final data = doc.data() as Map<String, dynamic>;
-            return SimpleDialogOption(
+        return AlertDialog(
+          title: Text('Nom du client'),
+          content: TextField(
+            controller: _controller,
+            decoration: InputDecoration(hintText: "Entrez le nom du client"),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context, null),
+              child: Text('Annuler'),
+            ),
+            TextButton(
               onPressed: () {
-                _reprendreVente(doc);
-                Navigator.pop(context);
+                Navigator.pop(context, _controller.text);
               },
-              child: Text(
-                  'Vente ${data['id']} - Montant: ${data['montantTotal']} FCFA'),
-            );
-          }).toList(),
+              child: Text('OK'),
+            ),
+          ],
         );
       },
     );
   }
 
-  // Reprend une vente suspendue en chargeant ses articles et montant total
-  void _reprendreVente(DocumentSnapshot vente) {
-    setState(() {
-      _articlesSelectionnes =
-          List<Map<String, dynamic>>.from(vente['articles']);
-      _montantTotal = (vente['montantTotal'] as num).toDouble();
-    });
-    // Optionnel : supprimer la vente suspendue de Firestore une fois reprise
-    FirebaseFirestore.instance.collection('ventes').doc(vente.id).delete();
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text('Vente reprise. Vous pouvez continuer.')),
-    );
+// Affiche la liste des ventes suspendues et permet d'en reprendre une
+  void _afficherVentesSuspendues() async {
+    try {
+      QuerySnapshot querySnapshot = await FirebaseFirestore.instance
+          .collection('ventes')
+          .where('statut', isEqualTo: 'suspendue')
+          .orderBy('date', descending: true)
+          .get();
+
+      if (querySnapshot.docs.isEmpty) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Aucune vente suspendue')),
+        );
+        return;
+      }
+
+      showDialog(
+        context: context,
+        builder: (context) {
+          return SimpleDialog(
+            title: Text('Ventes Suspendues'),
+            children: querySnapshot.docs.map((doc) {
+              final data = doc.data() as Map<String, dynamic>;
+              DateTime date = (data['date'] as Timestamp).toDate();
+              String dateFormat = "${date.day}/${date.month}/${date.year} ${date.hour}:${date.minute}";
+              return SimpleDialogOption(
+                onPressed: () {
+                  _reprendreVente(doc);
+                  Navigator.pop(context);
+                },
+                child: Text('Vente ${data['id']} - ${data['montantTotal']} FCFA\n(Date: $dateFormat)'),
+              );
+            }).toList(),
+          );
+        },
+      );
+    } catch (e) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Erreur lors du chargement des ventes suspendues')),
+      );
+      print("Erreur: $e");
+    }
   }
+
+// Reprend une vente suspendue en chargeant ses articles et montant total
+  void _reprendreVente(DocumentSnapshot vente) async {
+    try {
+      setState(() {
+        _articlesSelectionnes =
+        List<Map<String, dynamic>>.from(vente['articles']);
+        _montantTotal = (vente['montantTotal'] as num).toDouble();
+      });
+
+      // Suppression de la vente suspendue après reprise
+      await FirebaseFirestore.instance.collection('ventes').doc(vente.id).delete();
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Vente reprise avec succès.')),
+      );
+    } catch (e) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Erreur lors de la reprise de la vente')),
+      );
+      print("Erreur: $e");
+    }
+  }
+
 
   @override
   Widget build(BuildContext context) {
@@ -286,6 +351,9 @@ class _VentePageState extends State<VentePage> {
             onPressed: _afficherVentesSuspendues,
           ),
         ],
+        backgroundColor: Colors.blue.shade800, // Bleu foncé pour un aspect pro
+        centerTitle: true,
+        elevation: 4,
       ),
       body: Padding(
         padding: const EdgeInsets.all(8.0),

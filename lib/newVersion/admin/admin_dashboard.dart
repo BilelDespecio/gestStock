@@ -1,3 +1,4 @@
+import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:gest_stock/newVersion/detailProduct.dart';
@@ -50,8 +51,10 @@ class _HomePageAdminState extends State<HomePageAdmin> {
         var stockData = stockMap[produitNom];
         int quantiteDisponible = stockData?['quantiteDisponible'] ?? 0;
         double prixVente = stockData?['prixVenteUnitaire']?.toDouble() ?? 0.0;
+        
 
         return {
+          'gamme': produitData['gamme'],
           'nom': produitNom,
           'prixVente': prixVente,
           'quantiteDisponible': quantiteDisponible,
@@ -59,6 +62,8 @@ class _HomePageAdminState extends State<HomePageAdmin> {
           'seuil_critique': produitData['seuil_critique'] ?? 0,
           'seuil_alerte': produitData['seuil_alerte'] ?? 0,
           'code_barre': produitData['code_barre'] ?? '',
+          'type': produitData['type'] ?? '',
+          'poids': produitData['poids'] ?? '',
         };
       }).toList();
 
@@ -127,43 +132,101 @@ class _HomePageAdminState extends State<HomePageAdmin> {
             },
           ),
         ],
+        backgroundColor: Colors.blue.shade800, // Bleu foncé pour un aspect pro
+
+        elevation: 4,
       ),
       body: Padding(
         padding: const EdgeInsets.all(16.0),
         child: Column(
           children: [
             Row(
+              mainAxisAlignment: MainAxisAlignment.spaceEvenly,
               children: [
-                Text('Ajouter produit'),
-                IconButton(
-                    onPressed: () {
-                      Navigator.pushNamed(context, '/addProduct');
-                    },
-                    icon: Icon(Icons.add_shopping_cart_rounded)),
-                ElevatedButton(
-                    onPressed: () {
-                      Navigator.pushNamed(context, '/stats');
-                    },
-                    child: Text('Stats'))
+                // Texte "Ajouter produit" avec un style amélioré
+
+                // Bouton avec icône pour ajouter un produit
+                Container(
+                  decoration: BoxDecoration(
+                    color: Colors.green, // Couleur du bouton
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: Row(
+                    children: [
+                      Padding(
+                        padding: const EdgeInsets.fromLTRB(5, 5, 0, 5),
+                        child: Text(
+                          'Ajouter produit',
+                          style: TextStyle(
+                            fontSize: 16,
+                            color: Colors.white,
+                          ),
+                        ),
+                      ),
+                      IconButton(
+                        icon: Icon(Icons.add_shopping_cart_rounded, size: 28),
+                        onPressed: () {
+                          Navigator.pushNamed(context, '/addProduct');
+                        },
+                        tooltip: "Ajouter un produit",
+                      ),
+                    ],
+                  ),
+                ),
+
+                // Bouton pour voir les statistiques avec un design modernisé
+                ElevatedButton.icon(
+                  onPressed: () {
+                    Navigator.pushNamed(context, '/stats');
+                  },
+                  icon: Icon(Icons.bar_chart, size: 20),
+                  label: Text('Stats'),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: Colors.blueAccent, // Couleur du bouton
+                    foregroundColor: Colors.white, // Couleur du texte et icône
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    padding: EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                  ),
+                ),
               ],
             ),
             const SizedBox(height: 10),
             Row(
               children: [
                 Expanded(
-                  child: TextField(
-                    controller: _searchController,
-                    decoration: InputDecoration(
-                      labelText: 'Rechercher un produit',
-                      border: OutlineInputBorder(),
-                      prefixIcon: Icon(Icons.search),
+                  child: Container(
+                    decoration: BoxDecoration(
+                      color: Colors.grey.shade200, // Fond gris clair
+                      borderRadius: BorderRadius.circular(12),
                     ),
-                    onChanged: _filterProducts,
+                    child: TextField(
+                      controller: _searchController,
+                      decoration: InputDecoration(
+                        hintText: 'Rechercher un produit...',
+                        hintStyle: TextStyle(color: Colors.grey.shade600),
+                        border: InputBorder.none,
+                        prefixIcon:
+                            Icon(Icons.search, color: Colors.blueAccent),
+                        contentPadding:
+                            EdgeInsets.symmetric(vertical: 14, horizontal: 10),
+                      ),
+                      onChanged: _filterProducts,
+                    ),
                   ),
                 ),
-                IconButton(
-                  icon: Icon(Icons.qr_code_scanner),
-                  onPressed: _scanBarcode,
+                Container(
+                  decoration: BoxDecoration(
+                    color: Colors.blueAccent, // Couleur du bouton QR
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: IconButton(
+                    icon: Icon(Icons.qr_code_scanner,
+                        color: Colors.white, size: 28),
+                    onPressed: _scanBarcode,
+                    tooltip: "Scanner un QR Code",
+                  ),
                 ),
               ],
             ),
@@ -190,6 +253,7 @@ class _HomePageAdminState extends State<HomePageAdmin> {
                             'URL de l\'image : $imageUrl'); // Vérifier la valeur de l'URL
                         final int seuilCritique = produit['seuil_critique'];
                         final int seuilAlerte = produit['seuil_alerte'];
+                        
 
                         // Déterminer le message et la couleur du ruban
                         String? rubanText;
@@ -228,7 +292,21 @@ class _HomePageAdminState extends State<HomePageAdmin> {
                                           topLeft: Radius.circular(10),
                                           topRight: Radius.circular(10),
                                         ),
-                                        child: Image.network(
+                                        child: CachedNetworkImage(
+                                          imageUrl: imageUrl,
+                                          height: 100,
+                                          width: double.infinity,
+                                          fit: BoxFit.cover,
+                                          placeholder: (context, url) =>
+                                              const Center(
+                                                  child:
+                                                      CircularProgressIndicator()),
+                                          errorWidget: (context, url, error) =>
+                                              const Icon(
+                                                  Icons.image_not_supported,
+                                                  size: 120),
+                                        ),
+                                        /*Image.network(
                                           imageUrl,
                                           height: 100,
                                           width: double.infinity,
@@ -248,7 +326,7 @@ class _HomePageAdminState extends State<HomePageAdmin> {
                                                   const Icon(
                                                       Icons.image_not_supported,
                                                       size: 120),
-                                        ),
+                                        ),*/
                                       )
                                     else
                                       Container(
@@ -260,7 +338,21 @@ class _HomePageAdminState extends State<HomePageAdmin> {
                                         ),
                                       ),
                                     Padding(
-                                      padding: const EdgeInsets.all(5.0),
+                                      padding:
+                                          const EdgeInsets.fromLTRB(5, 0, 5, 0),
+                                      child: Text(
+                                        produit['gamme'] ?? 'Nom inconnu',
+                                        style: const TextStyle(
+                                          fontSize: 14,
+                                          fontWeight: FontWeight.bold,
+                                          color: Colors.blue
+                                        ),
+                                        overflow: TextOverflow.ellipsis,
+                                      ),
+                                    ),
+                                    Padding(
+                                      padding:
+                                          const EdgeInsets.fromLTRB(5, 0, 5, 0),
                                       child: Text(
                                         produit['nom'] ?? 'Nom inconnu',
                                         style: const TextStyle(
@@ -270,9 +362,35 @@ class _HomePageAdminState extends State<HomePageAdmin> {
                                         overflow: TextOverflow.ellipsis,
                                       ),
                                     ),
+                                    Row(
+                                      children: [
+                                        Padding(
+                                          padding:
+                                              const EdgeInsets.fromLTRB(5, 0, 5, 0),
+                                          child: Text(
+                                            produit['type'] ?? 'Type',
+                                            style: const TextStyle(
+                                              fontSize: 10,
+                                            ),
+                                            overflow: TextOverflow.ellipsis,
+                                          ),
+                                        ),
+                                        Padding(
+                                          padding:
+                                              const EdgeInsets.fromLTRB(5, 0, 5, 0),
+                                          child: Text(
+                                            produit['poids'] ?? 'poids',
+                                            style: const TextStyle(
+                                              fontSize: 10,
+                                            ),
+                                            overflow: TextOverflow.ellipsis,
+                                          ),
+                                        ),
+                                      ],
+                                    ),
                                     Padding(
                                       padding: const EdgeInsets.symmetric(
-                                          horizontal: 8.0),
+                                          horizontal: 5.0),
                                       child: Text(
                                         'Prix: ${prix.toInt()} FCFA',
                                         style: const TextStyle(
@@ -281,7 +399,7 @@ class _HomePageAdminState extends State<HomePageAdmin> {
                                     ),
                                     Padding(
                                       padding: const EdgeInsets.symmetric(
-                                          horizontal: 8.0),
+                                          horizontal: 5.0),
                                       child: Text(
                                         'Quantité Stock: $quantite',
                                         style: const TextStyle(fontSize: 12),

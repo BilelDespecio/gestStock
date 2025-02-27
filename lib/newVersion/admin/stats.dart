@@ -93,7 +93,9 @@ class _StatistiquesPageState extends State<StatistiquesPage> {
     return Scaffold(
       appBar: AppBar(
         title: const Text('Statistiques'),
+         backgroundColor: Colors.blue.shade800, // Bleu foncé pour un aspect pro
         centerTitle: true,
+        elevation: 4,
       ),
       body: Padding(
         padding: const EdgeInsets.all(8.0),
@@ -135,8 +137,8 @@ class _StatistiquesPageState extends State<StatistiquesPage> {
               mainAxisAlignment: MainAxisAlignment.spaceEvenly,
               children: [
                 GestureDetector(onTap: (){ Navigator.pop(context);},child: _buildStatCard('Total Produits', _totalProduits.toString(), Colors.blue)),
-                _buildStatCard('Stock Critique', _stockCritique.toString(), Colors.red),
-                _buildStatCard('Stock Alerte', _stockAlerte.toString(), Colors.orange),
+                GestureDetector(onTap:(){},child: _buildStatCard('Stock Critique', _stockCritique.toString(), Colors.red)),
+                GestureDetector(onTap: (){},child: _buildStatCard('Stock Alerte', _stockAlerte.toString(), Colors.orange)),
               ],
             ), 
             const SizedBox(height: 10),

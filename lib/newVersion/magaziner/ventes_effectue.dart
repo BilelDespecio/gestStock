@@ -6,7 +6,7 @@ class VentesEffectueesPage extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: Text('Ventes Effectuées')),
+      appBar: AppBar(title: Text('Ventes Effectuées'), backgroundColor: Colors.blue.shade800, centerTitle: true, elevation: 4),
       body: StreamBuilder(
         stream: FirebaseFirestore.instance
             .collection('ventes')

@@ -22,7 +22,9 @@ class DetailsCommandePage extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: Text('Détails de la commande $commandId')),
+      appBar: AppBar(title: Text('Détails de la commande $commandId'), backgroundColor: Colors.blue.shade800, // Bleu foncé pour un aspect pro
+        centerTitle: true,
+        elevation: 4,),
       body: Padding(
         padding: EdgeInsets.all(16.0),
         child: Column(

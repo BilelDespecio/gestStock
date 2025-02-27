@@ -30,6 +30,9 @@ class _GestionCommandesPageState extends State<GestionCommandesPage>
             Tab(text: 'Validées'),
           ],
         ),
+         backgroundColor: Colors.blue.shade800, // Bleu foncé pour un aspect pro
+        centerTitle: true,
+        elevation: 4,
       ),
       body: TabBarView(
         controller: _tabController,
