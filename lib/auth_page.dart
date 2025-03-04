@@ -85,25 +85,33 @@ class _AuthPageState extends State<AuthPage> {
   }
 
   /// Récupère la dernière version disponible sur Supabase
-  Future<Map<String, String>> getLatestVersion() async {
-    final response =
-        await supabase.from('updates').select().order('version', ascending: false).limit(1);
+  Future<Map<String, String>?> getLatestVersion() async {
+    try {
+      final response = await supabase
+          .from('updates')
+          .select()
+          .order('version', ascending: false)
+          .limit(1);
 
-    if (response.isNotEmpty) {
-      return {
-        "version": response[0]["version"],
-        "apkUrl": response[0]["apkUrl"]
-      };
+      if (response.isNotEmpty) {
+        final latest = response.first as Map<String, dynamic>;
+        return {
+          "version": latest['version'].toString(),
+          "apkUrl": latest['apkUrl'].toString(),
+        };
+      }
+    } catch (e) {
+      print('Erreur lors de la récupération de la version : $e');
     }
-    return {};
+    return null;
   }
 
   /// Vérifie si une mise à jour est disponible
   void checkForUpdate() async {
     String installedVersion = await getInstalledVersion();
-    Map<String, String> latestVersionData = await getLatestVersion();
+    Map<String, String>? latestVersionData = await getLatestVersion();
 
-    if (latestVersionData.isNotEmpty) {
+    if (latestVersionData != null && latestVersionData.isNotEmpty) {
       String latestVersion = latestVersionData["version"]!;
       String apkUrl = latestVersionData["apkUrl"]!;
 
@@ -112,7 +120,8 @@ class _AuthPageState extends State<AuthPage> {
           context: context,
           builder: (context) => AlertDialog(
             title: Text("Mise à jour disponible"),
-            content: Text("Nouvelle version : $latestVersion\nVoulez-vous mettre à jour ?"),
+            content: Text(
+                "Nouvelle version : $latestVersion\nVoulez-vous mettre à jour ?"),
             actions: [
               TextButton(
                 onPressed: () => Navigator.pop(context),
@@ -130,7 +139,10 @@ class _AuthPageState extends State<AuthPage> {
         );
       } else {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text("L'application est à jour")),
+          SnackBar(
+            content: Text("L'application est à jour"),
+            backgroundColor: Colors.green,
+          ),
         );
       }
     }
@@ -152,7 +164,7 @@ class _AuthPageState extends State<AuthPage> {
       }
     });
   }
-  
+
   @override
   Widget build(BuildContext context) {
     const String imagePath =
@@ -161,11 +173,10 @@ class _AuthPageState extends State<AuthPage> {
     return Scaffold(
       backgroundColor: Colors.white, // Fond propre et clair
       appBar: AppBar(
+        backgroundColor: Colors.white,
         actions: [
           IconButton(
-            onPressed: () {
-             
-            },
+            onPressed: checkForUpdate,
             icon: Icon(Icons.cloud_upload),
           ),
         ],
