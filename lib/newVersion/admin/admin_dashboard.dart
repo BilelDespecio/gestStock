@@ -64,6 +64,7 @@ class _HomePageAdminState extends State<HomePageAdmin> {
           'code_barre': produitData['code_barre'] ?? '',
           'type': produitData['type'] ?? '',
           'poids': produitData['poids'] ?? '',
+          'description': produitData['description'] ?? ''
         };
       }).toList();
 

@@ -7,6 +7,10 @@ import 'package:mobile_scanner/mobile_scanner.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 class AjouterProduitPage extends StatefulWidget {
+
+  final String? produitId; // Si null, c'est un ajout, sinon c'est une modification.
+  AjouterProduitPage({this.produitId});
+
   @override
   _AjouterProduitPageState createState() => _AjouterProduitPageState();
 }
@@ -36,21 +40,53 @@ class _AjouterProduitPageState extends State<AjouterProduitPage> {
     'Mèche',
     'Gellule',
     'Parfum',
-    'Gel de Douche'
-        'Déodorant'
-        'Grattoir'
+    'Gel de Douche',
+    'Déodorant',
+    'Grattoir',
   ];
 
   final List<Map<String, String>> etatsProduits = [
     {'label': 'Poids', 'value': 'g'},
-    {'label': 'Quantité', 'value': 'ml'},
+    {'label': 'Volume', 'value': 'ml'},
     {'label': 'Nombre', 'value': 'pcs'}
   ];
 
   String? _selectedType;
+  List<String> _typesDeProduits = [];
   String? _selectedEtat;
   File? _image;
   final ImagePicker _picker = ImagePicker();
+
+  @override
+  void initState() {
+    // TODO: implement initState
+    super.initState();
+    if (widget.produitId != null) {
+      _chargerProduit(widget.produitId!);
+    }
+    _fetchTypesDeProduits();
+  }
+
+Future<void> _chargerProduit(String produitId) async {
+    var doc = await FirebaseFirestore.instance.collection('produits').doc(produitId).get();
+    if (doc.exists) {
+      var data = doc.data();
+      setState(() {
+        nomController.text = data?['nom'] ?? '';
+        prixController.text = data?['prixVente'].toString() ?? '';
+        quantiteController.text = data?['quantiteDisponible'].toString() ?? '';
+        seuilCritiqueController.text = data?['seuil_critique'].toString() ?? '';
+        seuilAlerteController.text = data?['seuil_alerte'].toString() ?? '';
+        codeBarreController.text = data?['code_barre'] ?? '';
+        gammeController.text = data?['gamme'] ?? '';
+        poidsController.text = data?['poids'] ?? '';
+        marketPriceController.text = data?['marketPrice'].toString() ?? '';
+        descriptionController.text = data?['description'] ?? '';
+        _selectedType = data?['type'];
+        _image = data?['imageUrl']; // Stocke l'URL existante de l'image
+      });
+    }
+  }
 
   /// Fonction pour scanner un code-barres
   void scannerCodeBarre() async {
@@ -77,7 +113,7 @@ class _AjouterProduitPageState extends State<AjouterProduitPage> {
     );
   }
 
-/// Fonction pour sélectionner une image depuis la galerie ou prendre une photo
+  /// Fonction pour sélectionner une image depuis la galerie ou prendre une photo
   Future<void> pickImage() async {
     showModalBottomSheet(
       context: context,
@@ -89,9 +125,11 @@ class _AjouterProduitPageState extends State<AjouterProduitPage> {
             title: Text('Galerie'),
             onTap: () async {
               Navigator.pop(context);
-              final pickedFile = await _picker.pickImage(source: ImageSource.gallery);
+              final pickedFile =
+                  await _picker.pickImage(source: ImageSource.gallery);
               if (pickedFile != null) {
-                File? webpImage = await convertImageToWebP(File(pickedFile.path));
+                File? webpImage =
+                    await convertImageToWebP(File(pickedFile.path));
                 if (webpImage != null) {
                   setState(() {
                     _image = webpImage;
@@ -105,9 +143,11 @@ class _AjouterProduitPageState extends State<AjouterProduitPage> {
             title: Text('Appareil Photo'),
             onTap: () async {
               Navigator.pop(context);
-              final pickedFile = await _picker.pickImage(source: ImageSource.camera);
+              final pickedFile =
+                  await _picker.pickImage(source: ImageSource.camera);
               if (pickedFile != null) {
-                File? webpImage = await convertImageToWebP(File(pickedFile.path));
+                File? webpImage =
+                    await convertImageToWebP(File(pickedFile.path));
                 if (webpImage != null) {
                   setState(() {
                     _image = webpImage;
@@ -142,6 +182,7 @@ class _AjouterProduitPageState extends State<AjouterProduitPage> {
       return null;
     }
   }
+
   /// Fonction pour enregistrer un produit dans Firestore
   Future<void> enregistrerProduit() async {
     String gamme = gammeController.text;
@@ -185,11 +226,13 @@ class _AjouterProduitPageState extends State<AjouterProduitPage> {
       'description': description,
     };
 
-    // Enregistrer dans Firestore
-    await FirebaseFirestore.instance
-        .collection('produits')
-        .doc(produitNom)
-        .set(produitData);
+    if (widget.produitId == null) {
+      // Création d'un nouveau produit
+      await FirebaseFirestore.instance.collection('produits').doc(produitNom).set(produitData);
+    } else {
+      // Mise à jour d'un produit existant
+      await FirebaseFirestore.instance.collection('produits').doc(widget.produitId).update(produitData);
+    }
 
     showDialog(
       context: context,
@@ -208,8 +251,75 @@ class _AjouterProduitPageState extends State<AjouterProduitPage> {
         );
       },
     );
-
     print("Produit ajouté : $produitData");
+  }
+
+ // Fonction pour récupérer les types de produits depuis Firestore
+  Future<void> _fetchTypesDeProduits() async {
+    try {
+      var snapshot =
+          await FirebaseFirestore.instance.collection('types_produits').get();
+
+      List<String> types = snapshot.docs
+          .map((doc) => doc['nom'].toString()) // Vérifier que 'nom' est bien le champ contenant le type
+          .toList();
+
+      setState(() {
+        _typesDeProduits = types;
+      });
+    } catch (e) {
+      print("Erreur lors du chargement des types de produits : $e");
+    }
+  }
+
+// Fonction pour ajouter une nouvelle catégorie
+  Future<void> _ajouterNouvelleCategorie(BuildContext context) async {
+    String nouvelleCategorie = "";
+    showDialog(
+      context: context,
+      builder: (BuildContext context) {
+        return AlertDialog(
+          title: Text("Ajouter une nouvelle catégorie"),
+          content: TextField(
+            decoration: InputDecoration(hintText: "Nom de la catégorie"),
+            onChanged: (value) {
+              nouvelleCategorie = value.trim();
+            },
+          ),
+          actions: [
+            TextButton(
+              child: Text("Annuler"),
+              onPressed: () => Navigator.pop(context),
+            ),
+            TextButton(
+              child: Text("Ajouter"),
+              onPressed: () async {
+                if (nouvelleCategorie.isNotEmpty &&
+                    !_typesDeProduits.contains(nouvelleCategorie)) {
+                  try {
+                    // Ajouter dans Firestore
+                    await FirebaseFirestore.instance
+                        .collection('types_produits')
+                        .doc(nouvelleCategorie)
+                        .set({'nom': nouvelleCategorie});
+
+                    // Mettre à jour la liste et sélectionner la nouvelle catégorie
+                    setState(() {
+                      _typesDeProduits.add(nouvelleCategorie);
+                      _selectedType = nouvelleCategorie;
+                    });
+
+                    Navigator.pop(context);
+                  } catch (e) {
+                    print("Erreur lors de l'ajout : $e");
+                  }
+                }
+              },
+            ),
+          ],
+        );
+      },
+    );
   }
 
   @override
@@ -233,47 +343,71 @@ class _AjouterProduitPageState extends State<AjouterProduitPage> {
                   controller: nomController,
                   decoration: InputDecoration(labelText: "Variété")),
               // Sélecteur du type de produit
-              DropdownButtonFormField<String>(
-                decoration: InputDecoration(labelText: "Catégorie"),
-                value: _selectedType,
-                onChanged: (newValue) {
+             DropdownButtonFormField<String>(
+              decoration: InputDecoration(labelText: "Catégorie"),
+              value: _selectedType,
+              onChanged: (newValue) {
+                if (newValue == "Ajouter une catégorie") {
+                  _ajouterNouvelleCategorie(context);
+                } else {
                   setState(() {
                     _selectedType = newValue;
                   });
-                },
-                items: typesDeProduits.map((String type) {
+                }
+              },
+              items: [
+                ..._typesDeProduits.map((String type) {
                   return DropdownMenuItem<String>(
                     value: type,
                     child: Text(type),
                   );
                 }).toList(),
-              ),
-
+                DropdownMenuItem<String>(
+                  value: "Ajouter une catégorie",
+                  child: Row(
+                    children: [
+                      Icon(Icons.add, color: Colors.green),
+                      SizedBox(width: 8),
+                      Text("Ajouter une catégorie"),
+                    ],
+                  ),
+                ),
+              ],
+            ),
               /* TextField(
                   controller: prixController,
                   decoration: InputDecoration(labelText: "Prix de vente"),
                   keyboardType: TextInputType.number),*/
               DropdownButtonFormField<String>(
-  decoration: InputDecoration(labelText: "État du produit"),
-  value: _selectedEtat,
-  onChanged: (newValue) => setState(() => _selectedEtat = newValue),
-  items: etatsProduits.map((etat) {
-    return DropdownMenuItem<String>(
-      value: etat['value'], // Valeur enregistrée
-      child: Text(etat['label']!), // Texte affiché
-    );
-  }).toList(),
-),
+                decoration: InputDecoration(labelText: "État du produit"),
+                value: _selectedEtat,
+                onChanged: (newValue) =>
+                    setState(() => _selectedEtat = newValue),
+                items: etatsProduits.map((etat) {
+                  return DropdownMenuItem<String>(
+                    value: etat['value'], // Valeur enregistrée
+                    child: Text(etat['label']!), // Texte affiché
+                  );
+                }).toList(),
+              ),
               TextField(
                 controller: poidsController,
                 decoration: InputDecoration(
-                    labelText:
-                        _selectedEtat == "ml" ? "Volume (ml)" : "Poids (g)"),
+                  labelText: _selectedEtat == "ml"
+                      ? "Volume (ml)"
+                      : _selectedEtat == "pcs"
+                          ? "Nombre (pcs)"
+                          : "Poids (g)",
+                  border:
+                      OutlineInputBorder(), // Ajoute une bordure pour un meilleur design
+                ),
                 keyboardType: TextInputType.number,
               ),
               TextField(
-                  controller: descriptionController,
-                  decoration: InputDecoration(labelText: "Description(usage et/ou composition)"),),
+                controller: descriptionController,
+                decoration: InputDecoration(
+                    labelText: "Description(usage et/ou composition)"),
+              ),
               TextField(
                   controller: seuilCritiqueController,
                   decoration: InputDecoration(labelText: "Seuil critique"),
@@ -282,9 +416,10 @@ class _AjouterProduitPageState extends State<AjouterProduitPage> {
                   controller: seuilAlerteController,
                   decoration: InputDecoration(labelText: "Seuil alerte"),
                   keyboardType: TextInputType.number),
-TextField(
+              TextField(
                   controller: marketPriceController,
-                  decoration: InputDecoration(labelText: "Prix de vente du marché(en FCFA)"),
+                  decoration: InputDecoration(
+                      labelText: "Prix de vente du marché(en FCFA)"),
                   keyboardType: TextInputType.number),
 
               Row(

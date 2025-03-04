@@ -71,6 +71,7 @@ class _HomePageMagazinierState extends State<HomePageMagazinier> {
         double prixVente = stockData?['prixVenteUnitaire']?.toDouble() ?? 0.0;
 
         return {
+          'gamme': produitData['gamme'],
           'nom': produitNom,
           'prixVente': prixVente,
           'quantiteDisponible': quantiteDisponible,
@@ -78,8 +79,9 @@ class _HomePageMagazinierState extends State<HomePageMagazinier> {
           'seuil_critique': produitData['seuil_critique'] ?? 0,
           'seuil_alerte': produitData['seuil_alerte'] ?? 0,
           'code_barre': produitData['code_barre'] ?? '',
-          'gamme': produitData['gamme'],
-          'type': produitData['type']
+          'type': produitData['type'] ?? '',
+          'poids': produitData['poids'] ?? '',
+          'description': produitData['description'] ?? ''
         };
       }).toList();
 

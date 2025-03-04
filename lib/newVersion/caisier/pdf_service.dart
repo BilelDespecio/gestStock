@@ -1,11 +1,10 @@
 import 'package:path_provider/path_provider.dart';
 import 'package:pdf/widgets.dart' as pw;
 import 'dart:io';
-import 'package:open_file/open_file.dart';
-import 'package:gest_stock/newVersion/caisier/whatsapp_service.dart';
+
 
 class PdfService {
-  Future<void> telechargerFacture(Map<String, dynamic> vente) async {
+  Future<File?> telechargerFacture(Map<String, dynamic> vente) async {
     final pdf = pw.Document();
     final now = DateTime.now();
     final formattedDate =
@@ -86,7 +85,7 @@ class PdfService {
     }
 
 
-// Utilisation :
+    // Utilisation :
     final montantEnLettres =
     convertirNombreEnLettres(vente['montantTotal'].toInt());
 
@@ -148,28 +147,25 @@ class PdfService {
     );
 
     try {
-      final directory = await getExternalStorageDirectory();
-      final filePath =
-          '${directory!.path}/facture_${vente['client']}_${now.millisecondsSinceEpoch}.pdf';
-      final file = File(filePath);
+  final directory = await getExternalStorageDirectory();
+  if (directory == null) {
+    print('Erreur: Impossible d\'accéder au stockage externe.');
+    return null;
+  }
 
-      await file.writeAsBytes(await pdf.save());
+  final filePath =
+      '${directory.path}/facture_${vente['client']}_${now.millisecondsSinceEpoch}.pdf';
+  final file = File(filePath);
 
-      // Ouvrir le fichier PDF
-      final result = await OpenFile.open(filePath);
+  await file.writeAsBytes(await pdf.save());
 
-      if (result.type != ResultType.done) {
-        print('Erreur lors de l\'ouverture du fichier : ${result.message}');
-      } else {
-        print('Facture enregistrée et ouverte : $filePath');
+  print('Facture générée avec succès: $filePath');
 
-        // Envoi sur WhatsApp
-        final whatsappService = WhatsAppService();
-        await whatsappService.envoyerFactureWhatsApp(filePath, vente['client']);
-      }
-    } catch (e) {
-      print('Erreur lors de la génération de la facture: $e');
-    }
+  return file;
+} catch (e) {
+  print('Erreur lors de la génération de la facture: $e');
+  return null;
+}
   }
 
 }

@@ -1,7 +1,12 @@
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:flutter/services.dart'; // Pour utiliser rootBundle
+import 'package:flutter/services.dart';
+import 'package:flutter_downloader/flutter_downloader.dart';
+import 'package:open_file/open_file.dart';
+import 'package:supabase_flutter/supabase_flutter.dart'; // Pour utiliser rootBundle
+import 'package:flutter/services.dart';
+import 'package:package_info_plus/package_info_plus.dart';
 
 class AuthPage extends StatefulWidget {
   @override
@@ -13,6 +18,7 @@ class _AuthPageState extends State<AuthPage> {
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
   final TextEditingController _emailController = TextEditingController();
   final TextEditingController _passwordController = TextEditingController();
+  final SupabaseClient supabase = Supabase.instance.client;
 
   String _errorMessage = '';
 
@@ -63,7 +69,7 @@ class _AuthPageState extends State<AuthPage> {
     }
   }
 
-   Future<bool> _imageExists(String path) async {
+  Future<bool> _imageExists(String path) async {
     try {
       await rootBundle.load(path);
       return true; // L'image existe
@@ -72,18 +78,98 @@ class _AuthPageState extends State<AuthPage> {
     }
   }
 
+  /// Récupère la version installée
+  Future<String> getInstalledVersion() async {
+    PackageInfo packageInfo = await PackageInfo.fromPlatform();
+    return packageInfo.version; // Ex: "1.0.0"
+  }
+
+  /// Récupère la dernière version disponible sur Supabase
+  Future<Map<String, String>> getLatestVersion() async {
+    final response =
+        await supabase.from('updates').select().order('version', ascending: false).limit(1);
+
+    if (response.isNotEmpty) {
+      return {
+        "version": response[0]["version"],
+        "apkUrl": response[0]["apkUrl"]
+      };
+    }
+    return {};
+  }
+
+  /// Vérifie si une mise à jour est disponible
+  void checkForUpdate() async {
+    String installedVersion = await getInstalledVersion();
+    Map<String, String> latestVersionData = await getLatestVersion();
+
+    if (latestVersionData.isNotEmpty) {
+      String latestVersion = latestVersionData["version"]!;
+      String apkUrl = latestVersionData["apkUrl"]!;
+
+      if (installedVersion != latestVersion) {
+        showDialog(
+          context: context,
+          builder: (context) => AlertDialog(
+            title: Text("Mise à jour disponible"),
+            content: Text("Nouvelle version : $latestVersion\nVoulez-vous mettre à jour ?"),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(context),
+                child: Text("Annuler"),
+              ),
+              TextButton(
+                onPressed: () {
+                  Navigator.pop(context);
+                  _downloadAndInstallApk(apkUrl);
+                },
+                child: Text("Mettre à jour"),
+              ),
+            ],
+          ),
+        );
+      } else {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text("L'application est à jour")),
+        );
+      }
+    }
+  }
+
+  /// Télécharge et installe l'APK
+  Future<void> _downloadAndInstallApk(String apkUrl) async {
+    final taskId = await FlutterDownloader.enqueue(
+      url: apkUrl,
+      savedDir: '/storage/emulated/0/Download',
+      fileName: 'app_update.apk',
+      showNotification: true,
+      openFileFromNotification: true,
+    );
+
+    FlutterDownloader.registerCallback((id, status, progress) {
+      if (status == DownloadTaskStatus.complete) {
+        OpenFile.open('/storage/emulated/0/Download/app_update.apk');
+      }
+    });
+  }
+  
   @override
   Widget build(BuildContext context) {
-    const String imagePath = 'assets/images/logo.png'; // Remplace par ton chemin
+    const String imagePath =
+        'assets/images/logo.png'; // Remplace par ton chemin
 
     return Scaffold(
       backgroundColor: Colors.white, // Fond propre et clair
-      /*appBar: AppBar(
-        title: Text('Connexion'),
-        backgroundColor: Colors.blue.shade800, // Bleu foncé pour un aspect pro
-        centerTitle: true,
-        elevation: 4,
-      ),*/
+      appBar: AppBar(
+        actions: [
+          IconButton(
+            onPressed: () {
+             
+            },
+            icon: Icon(Icons.cloud_upload),
+          ),
+        ],
+      ),
       body: Padding(
         padding: const EdgeInsets.all(20.0),
         child: Center(
@@ -99,23 +185,33 @@ class _AuthPageState extends State<AuthPage> {
                     if (snapshot.connectionState == ConnectionState.waiting) {
                       return CircularProgressIndicator(); // Chargement
                     } else if (snapshot.hasError || !snapshot.data!) {
-                      return Icon(
-                        Icons.storefront, // Icône de boutique par défaut
-                        size: 90,
-                        color: Colors.blue.shade800,
+                      return Image.asset(
+                        imagePath,
+                        //width: 90,
+                        //height: 90,
+                        fit: BoxFit.cover,
                       );
                     } else {
                       return Image.asset(
                         imagePath,
-                        width: 90,
-                        height: 90,
+                        //width: 90,
+                        //height: 90,
                         fit: BoxFit.cover,
                       );
                     }
                   },
                 ),
-                SizedBox(height: 20),
-
+                SizedBox(height: 40),
+                Text(
+                  'Connexion',
+                  textAlign: TextAlign.center,
+                  style: TextStyle(
+                    fontSize: 24,
+                    fontWeight: FontWeight.bold,
+                    color: Colors.blue.shade800,
+                  ),
+                ),
+                SizedBox(height: 15),
                 // Champ Email
                 TextField(
                   controller: _emailController,
@@ -160,7 +256,7 @@ class _AuthPageState extends State<AuthPage> {
                   ),
                 ),
 
-               /* // Lien Mot de passe oublié
+                /* // Lien Mot de passe oublié
                 TextButton(
                   onPressed: () {
                     // Action pour mot de passe oublié

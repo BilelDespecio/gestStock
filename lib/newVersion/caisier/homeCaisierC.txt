@@ -1,0 +1,25 @@
+/*
+      // uploadFacture(File file, String venteId) dans lib/newVersion/caisier/supabase_service.dart
+      // 2️⃣ Envoyer la facture sur Supabase Storage et récupérer l'URL
+      final factureUrl =
+          await _supabaseService.uploadFacture(pdfFile, widget.venteId);
+      if (factureUrl == null) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Échec de l\'upload de la facture.')),
+        );
+        return;
+      }*/
+/*
+      // 3️⃣ Mettre à jour Firestore avec le lien de la facture dans lib/newVersion/caisier/firestore_service.dart
+      await _firestoreService.validerVente(
+          widget.venteId, numeroWhatsApp, factureUrl!);
+
+      // 4️⃣ Envoyer le lien au client sur WhatsApp dans lib/newVersion/caisier/whatsapp_service.dart
+      await _whatsappService.envoyerFactureWhatsApp(
+          factureUrl!, numeroWhatsApp);
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Vente validée et facture envoyée !')),
+      );
+*/
+      //Navigator.pop(context); // Retour à la liste des ventes
