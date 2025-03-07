@@ -2,13 +2,14 @@ import 'dart:io';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 import 'package:gest_stock/newVersion/convertWebp.dart';
+import 'package:image_cropper/image_cropper.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:mobile_scanner/mobile_scanner.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 class AjouterProduitPage extends StatefulWidget {
-
-  final String? produitId; // Si null, c'est un ajout, sinon c'est une modification.
+  final String?
+      produitId; // Si null, c'est un ajout, sinon c'est une modification.
   AjouterProduitPage({this.produitId});
 
   @override
@@ -67,8 +68,11 @@ class _AjouterProduitPageState extends State<AjouterProduitPage> {
     _fetchTypesDeProduits();
   }
 
-Future<void> _chargerProduit(String produitId) async {
-    var doc = await FirebaseFirestore.instance.collection('produits').doc(produitId).get();
+  Future<void> _chargerProduit(String produitId) async {
+    var doc = await FirebaseFirestore.instance
+        .collection('produits')
+        .doc(produitId)
+        .get();
     if (doc.exists) {
       var data = doc.data();
       setState(() {
@@ -113,6 +117,31 @@ Future<void> _chargerProduit(String produitId) async {
     );
   }
 
+  ///la fonction pour rogner l'image
+
+  Future<File?> cropImage(File imageFile) async {
+    final CroppedFile? croppedFile = await ImageCropper().cropImage(
+      sourcePath: imageFile.path,
+      // Style de rognage
+      uiSettings: [
+        AndroidUiSettings(
+          toolbarTitle: 'Rogner l\'image',
+          toolbarColor: Colors.green,
+          toolbarWidgetColor: Colors.white,
+          lockAspectRatio: false,
+        ),
+        IOSUiSettings(
+          title: 'Rogner l\'image',
+        ),
+      ],
+    );
+
+    if (croppedFile != null) {
+      return File(croppedFile.path);
+    }
+    return null;
+  }
+
   /// Fonction pour sélectionner une image depuis la galerie ou prendre une photo
   Future<void> pickImage() async {
     showModalBottomSheet(
@@ -127,13 +156,20 @@ Future<void> _chargerProduit(String produitId) async {
               Navigator.pop(context);
               final pickedFile =
                   await _picker.pickImage(source: ImageSource.gallery);
+
               if (pickedFile != null) {
-                File? webpImage =
-                    await convertImageToWebP(File(pickedFile.path));
-                if (webpImage != null) {
-                  setState(() {
-                    _image = webpImage;
-                  });
+                File originalImage = File(pickedFile.path);
+                // Rogner l'image
+                File? croppedImage = await cropImage(originalImage);
+
+                 if (croppedImage != null) {
+                  // Convertir en WebP après rognage
+                  File? webpImage = await convertImageToWebP(croppedImage);
+                  if (webpImage != null) {
+                    setState(() {
+                      _image = webpImage;
+                    });
+                  }
                 }
               }
             },
@@ -145,13 +181,20 @@ Future<void> _chargerProduit(String produitId) async {
               Navigator.pop(context);
               final pickedFile =
                   await _picker.pickImage(source: ImageSource.camera);
+
               if (pickedFile != null) {
-                File? webpImage =
-                    await convertImageToWebP(File(pickedFile.path));
-                if (webpImage != null) {
-                  setState(() {
-                    _image = webpImage;
-                  });
+                File originalImage = File(pickedFile.path);
+                // Rogner l'image
+                File? croppedImage = await cropImage(originalImage);
+
+                if (croppedImage != null) {
+                  // Convertir en WebP après rognage
+                  File? webpImage = await convertImageToWebP(croppedImage);
+                  if (webpImage != null) {
+                    setState(() {
+                      _image = webpImage;
+                    });
+                  }
                 }
               }
             },
@@ -196,6 +239,8 @@ Future<void> _chargerProduit(String produitId) async {
     double marketPrice = double.tryParse(marketPriceController.text) ?? 0;
     String description = descriptionController.text;
 
+    String docName = gamme + '_' + produitNom;
+
     // Vérifier si une image a été sélectionnée
     if (_image == null) {
       ScaffoldMessenger.of(context).showSnackBar(
@@ -228,10 +273,16 @@ Future<void> _chargerProduit(String produitId) async {
 
     if (widget.produitId == null) {
       // Création d'un nouveau produit
-      await FirebaseFirestore.instance.collection('produits').doc(produitNom).set(produitData);
+      await FirebaseFirestore.instance
+          .collection('produits')
+          .doc(docName)
+          .set(produitData);
     } else {
       // Mise à jour d'un produit existant
-      await FirebaseFirestore.instance.collection('produits').doc(widget.produitId).update(produitData);
+      await FirebaseFirestore.instance
+          .collection('produits')
+          .doc(widget.produitId)
+          .update(produitData);
     }
 
     showDialog(
@@ -254,14 +305,15 @@ Future<void> _chargerProduit(String produitId) async {
     print("Produit ajouté : $produitData");
   }
 
- // Fonction pour récupérer les types de produits depuis Firestore
+  // Fonction pour récupérer les types de produits depuis Firestore
   Future<void> _fetchTypesDeProduits() async {
     try {
       var snapshot =
           await FirebaseFirestore.instance.collection('types_produits').get();
 
       List<String> types = snapshot.docs
-          .map((doc) => doc['nom'].toString()) // Vérifier que 'nom' est bien le champ contenant le type
+          .map((doc) => doc['nom']
+              .toString()) // Vérifier que 'nom' est bien le champ contenant le type
           .toList();
 
       setState(() {
@@ -343,37 +395,37 @@ Future<void> _chargerProduit(String produitId) async {
                   controller: nomController,
                   decoration: InputDecoration(labelText: "Variété")),
               // Sélecteur du type de produit
-             DropdownButtonFormField<String>(
-              decoration: InputDecoration(labelText: "Catégorie"),
-              value: _selectedType,
-              onChanged: (newValue) {
-                if (newValue == "Ajouter une catégorie") {
-                  _ajouterNouvelleCategorie(context);
-                } else {
-                  setState(() {
-                    _selectedType = newValue;
-                  });
-                }
-              },
-              items: [
-                ..._typesDeProduits.map((String type) {
-                  return DropdownMenuItem<String>(
-                    value: type,
-                    child: Text(type),
-                  );
-                }).toList(),
-                DropdownMenuItem<String>(
-                  value: "Ajouter une catégorie",
-                  child: Row(
-                    children: [
-                      Icon(Icons.add, color: Colors.green),
-                      SizedBox(width: 8),
-                      Text("Ajouter une catégorie"),
-                    ],
+              DropdownButtonFormField<String>(
+                decoration: InputDecoration(labelText: "Catégorie"),
+                value: _selectedType,
+                onChanged: (newValue) {
+                  if (newValue == "Ajouter une catégorie") {
+                    _ajouterNouvelleCategorie(context);
+                  } else {
+                    setState(() {
+                      _selectedType = newValue;
+                    });
+                  }
+                },
+                items: [
+                  ..._typesDeProduits.map((String type) {
+                    return DropdownMenuItem<String>(
+                      value: type,
+                      child: Text(type),
+                    );
+                  }).toList(),
+                  DropdownMenuItem<String>(
+                    value: "Ajouter une catégorie",
+                    child: Row(
+                      children: [
+                        Icon(Icons.add, color: Colors.green),
+                        SizedBox(width: 8),
+                        Text("Ajouter une catégorie"),
+                      ],
+                    ),
                   ),
-                ),
-              ],
-            ),
+                ],
+              ),
               /* TextField(
                   controller: prixController,
                   decoration: InputDecoration(labelText: "Prix de vente"),
