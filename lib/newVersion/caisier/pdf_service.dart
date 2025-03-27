@@ -89,7 +89,7 @@ class PdfService {
     final montantEnLettres =
     convertirNombreEnLettres(vente['montantTotal'].toInt());
 
-    pdf.addPage(
+    /*pdf.addPage(
       pw.Page(
         build: (pw.Context context) {
           return pw.Column(
@@ -144,7 +144,62 @@ class PdfService {
           );
         },
       ),
+    );*/
+
+    pdf.addPage(
+      pw.Page(
+        build: (pw.Context context) {
+          return pw.Column(
+            crossAxisAlignment: pw.CrossAxisAlignment.start,
+            children: [
+              pw.Text('FACTURE ${vente['id']}',
+                  style: pw.TextStyle(
+                      fontSize: 20, fontWeight: pw.FontWeight.bold)),
+              pw.SizedBox(height: 5),
+              pw.Text('Date: $formattedDate', style: pw.TextStyle(fontSize: 20)),
+              pw.Text('Client: ${vente['client']}', style: pw.TextStyle(fontSize: 20)),
+              pw.SizedBox(height: 5),
+              pw.Divider(),
+              pw.Text('Détails des articles:',
+                  style: pw.TextStyle(
+                      fontSize: 20, fontWeight: pw.FontWeight.bold)),
+              pw.Text('Nom produit',style: pw.TextStyle(
+                  fontSize: 20, fontWeight: pw.FontWeight.bold)),
+              pw.Text("Quantité,   Montant total produit",style: pw.TextStyle(
+                  fontSize: 20, fontWeight: pw.FontWeight.bold)),
+              pw.Divider(),
+              pw.SizedBox(height: 5),
+              // Liste des articles, chaque produit sur 2 lignes
+              ...vente['articles'].map<pw.Widget>((article) {
+                return pw.Column(
+                  crossAxisAlignment: pw.CrossAxisAlignment.start,
+                  children: [
+                    pw.Text(
+                      '${article['nom']} ',
+                      style: pw.TextStyle(fontSize: 20, fontWeight: pw.FontWeight.bold),
+                    ),
+                    pw.Text(
+                      'Qté: ${article['quantite']} | Montant: ${article['prixTotal']} FCFA',
+                      style: pw.TextStyle(fontSize: 20),
+                    ),
+                    pw.Divider(),
+                  ],
+                );
+              }).toList(),
+              pw.SizedBox(height: 10),
+              pw.Text(
+                  'Total: ${vente['montantTotal']} FCFA',
+                  style: pw.TextStyle(
+                      fontSize: 20, fontWeight: pw.FontWeight.bold)),
+              pw.SizedBox(height: 10),
+              pw.Text('Merci pour votre achat',
+                  style: pw.TextStyle(fontSize: 20, fontStyle: pw.FontStyle.italic)),
+            ],
+          );
+        },
+      ),
     );
+
 
     try {
   final directory = await getExternalStorageDirectory();

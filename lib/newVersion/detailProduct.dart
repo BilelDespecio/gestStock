@@ -16,6 +16,7 @@ class DetailProduitPage extends StatefulWidget {
 class _DetailProduitPageState extends State<DetailProduitPage> {
 
  bool _isAuthorized = false;
+    late String idProduit;
     late String imageUrl;
     late String nomProduit;
     late double prix;
@@ -33,6 +34,7 @@ class _DetailProduitPageState extends State<DetailProduitPage> {
   @override
   void initState() {
     super.initState();
+    idProduit = widget.produit['id'] ?? '';
     imageUrl = widget.produit['image'] ?? '';
     nomProduit = widget.produit['nom'] ?? 'Nom inconnu';
     prix = widget.produit['prixVente']?.toDouble() ?? 0;
@@ -135,7 +137,7 @@ class _DetailProduitPageState extends State<DetailProduitPage> {
                       context,
                       MaterialPageRoute(
                         builder: (context) =>
-                            AjouterProduitPage(produitId: nomProduit),
+                            AjouterProduitPage(produitId: idProduit),
                       ),
                     );
                   },
@@ -143,7 +145,7 @@ class _DetailProduitPageState extends State<DetailProduitPage> {
                 IconButton(
                   icon: const Icon(Icons.delete, color: Colors.red),
                   onPressed: () {
-                    _confirmerSuppression(context, nomProduit);
+                    _confirmerSuppression(context, idProduit);
                   },
                 ),
               ]

@@ -81,7 +81,8 @@ class _HomePageMagazinierState extends State<HomePageMagazinier> {
           'code_barre': produitData['code_barre'] ?? '',
           'type': produitData['type'] ?? '',
           'poids': produitData['poids'] ?? '',
-          'description': produitData['description'] ?? ''
+          'description': produitData['description'] ?? '',
+          'prixDecide': produitData['prixDecide'] ?? 0.0,
         };
       }).toList();
 
@@ -96,7 +97,9 @@ class _HomePageMagazinierState extends State<HomePageMagazinier> {
       } else {
         _filteredProducts = _allProducts
             .where((product) =>
-                product['nom'].toLowerCase().contains(query.toLowerCase()))
+                product['nom'].toLowerCase().contains(query.toLowerCase())||
+                product['gamme'].toLowerCase().contains(query.toLowerCase())||
+                product['type'].toLowerCase().contains(query.toLowerCase()))
             .toList();
       }
     });

@@ -8,6 +8,7 @@ class DetailsCommandePage extends StatelessWidget {
   final double fraisAnnexes;
   final double totalQuantite;
   final double prixRevientTotal;
+  final double prixVenteMarche;
 
   DetailsCommandePage({
     required this.commandId,
@@ -17,6 +18,7 @@ class DetailsCommandePage extends StatelessWidget {
     required this.fraisAnnexes,
     required this.totalQuantite,
     required this.prixRevientTotal,
+    required this.prixVenteMarche,
   });
 
   @override
@@ -48,6 +50,7 @@ class DetailsCommandePage extends StatelessWidget {
                   double prixRevient = _convertToDouble(article['prixRevientUnitaire']);
                   double prixVente = _convertToDouble(article['prixVenteUnitaire']);
                   int quantite = _convertToInt(article['quantity']);
+                  double prixVenteMarche = _convertToDouble(article['prixVenteMarche']);
 
                   return ListTile(
                     title: Text(article['name']),
@@ -57,7 +60,8 @@ class DetailsCommandePage extends StatelessWidget {
                         Text('Quantité: $quantite'),
                         if (statut == 'validée') ...[
                           Text('Prix de revient unitaire: ${prixRevient.toStringAsFixed(2)} FCFA'),
-                          Text('Prix de vente unitaire: ${prixVente.toStringAsFixed(2)} FCFA'),
+                          Text('Prix de vente unitaire (20: ${prixVente.toStringAsFixed(2)} FCFA'),
+                          Text('Prix de vente sur le Marche: ${prixVenteMarche.toStringAsFixed(2)} FCFA'),
                         ],
                       ],
                     ),

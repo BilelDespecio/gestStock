@@ -27,6 +27,7 @@ class _AjouterProduitPageState extends State<AjouterProduitPage> {
   final TextEditingController poidsController = TextEditingController();
   final TextEditingController marketPriceController = TextEditingController();
   final TextEditingController descriptionController = TextEditingController();
+  final TextEditingController prixDecideController = TextEditingController();
 
   final List<String> typesDeProduits = [
     'Savon',
@@ -55,7 +56,7 @@ class _AjouterProduitPageState extends State<AjouterProduitPage> {
   String? _selectedType;
   List<String> _typesDeProduits = [];
   String? _selectedEtat;
-  File? _image;
+  dynamic _image;
   final ImagePicker _picker = ImagePicker();
 
   @override
@@ -162,7 +163,7 @@ class _AjouterProduitPageState extends State<AjouterProduitPage> {
                 // Rogner l'image
                 File? croppedImage = await cropImage(originalImage);
 
-                 if (croppedImage != null) {
+                if (croppedImage != null) {
                   // Convertir en WebP après rognage
                   File? webpImage = await convertImageToWebP(croppedImage);
                   if (webpImage != null) {
@@ -238,6 +239,7 @@ class _AjouterProduitPageState extends State<AjouterProduitPage> {
     String poids = '${poidsController.text} ${_selectedEtat!}';
     double marketPrice = double.tryParse(marketPriceController.text) ?? 0;
     String description = descriptionController.text;
+    int prixDecide = int.tryParse(prixDecideController.text) ?? 0;
 
     String docName = gamme + '_' + produitNom;
 
@@ -269,6 +271,7 @@ class _AjouterProduitPageState extends State<AjouterProduitPage> {
       'poids': poids,
       'marketPrice': marketPrice,
       'description': description,
+      'prixDecide': prixDecide,
     };
 
     if (widget.produitId == null) {
@@ -473,7 +476,12 @@ class _AjouterProduitPageState extends State<AjouterProduitPage> {
                   decoration: InputDecoration(
                       labelText: "Prix de vente du marché(en FCFA)"),
                   keyboardType: TextInputType.number),
-
+              if (widget.produitId != null)
+                TextField(
+                  controller: prixDecideController,
+                  decoration: InputDecoration(labelText: "Prix Décidé(en FCFA)"),
+                  keyboardType: TextInputType.number,
+                ),
               Row(
                 children: [
                   Expanded(
@@ -494,21 +502,26 @@ class _AjouterProduitPageState extends State<AjouterProduitPage> {
 
               // Bouton pour sélectionner une image
               Row(
-                mainAxisAlignment: MainAxisAlignment.center,
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
-                  ElevatedButton(
-                    onPressed: pickImage,
-                    child: Text("Sélectionner une Image"),
-                  ),
+                  
+                  ElevatedButton(onPressed: pickImage, child: Column(
+                    children: [
+                      Icon(Icons.image),
+                      Text("Image")
+                    ],
+                  )),
+                  if (_image != null)
+                    Padding(
+                      padding: const EdgeInsets.symmetric(vertical: 10),
+                      child: _image is String // Vérifie si c'est une URL
+                          ? Image.network(_image as String,
+                              height: 150) // Affiche l'image depuis Firestore
+                          : Image.file(_image as File,
+                              height: 150), // Affiche depuis le stockage local
+                    ),
                 ],
               ),
-
-              // Afficher l'image sélectionnée
-              if (_image != null)
-                Padding(
-                  padding: const EdgeInsets.symmetric(vertical: 10),
-                  child: Image.file(_image!, height: 150),
-                ),
 
               SizedBox(height: 20),
 

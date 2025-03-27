@@ -4,7 +4,8 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_downloader/flutter_downloader.dart';
 import 'package:open_file/open_file.dart';
-import 'package:supabase_flutter/supabase_flutter.dart'; // Pour utiliser rootBundle
+import 'package:permission_handler/permission_handler.dart';
+import 'package:supabase_flutter/supabase_flutter.dart'; 
 import 'package:flutter/services.dart';
 import 'package:package_info_plus/package_info_plus.dart';
 
@@ -94,7 +95,7 @@ class _AuthPageState extends State<AuthPage> {
           .limit(1);
 
       if (response.isNotEmpty) {
-        final latest = response.first as Map<String, dynamic>;
+        final latest = response.first;
         return {
           "version": latest['version'].toString(),
           "apkUrl": latest['apkUrl'].toString(),
@@ -128,8 +129,9 @@ class _AuthPageState extends State<AuthPage> {
                 child: Text("Annuler"),
               ),
               TextButton(
-                onPressed: () {
+                onPressed: () async {
                   Navigator.pop(context);
+                  await Permission.storage.request();
                   _downloadAndInstallApk(apkUrl);
                 },
                 child: Text("Mettre à jour"),
@@ -148,21 +150,29 @@ class _AuthPageState extends State<AuthPage> {
     }
   }
 
+Future<void> requestPermissions() async {
+  if (await Permission.storage.request().isGranted) {
+    print("Permission accordée");
+  } else {
+    print("Permission refusée");
+  }
+}
+
   /// Télécharge et installe l'APK
   Future<void> _downloadAndInstallApk(String apkUrl) async {
-    final taskId = await FlutterDownloader.enqueue(
+    await requestPermissions();
+    await FlutterDownloader.initialize(debug: true);
+
+    // 🔹 Enregistre le callback global
+    FlutterDownloader.registerCallback(downloadCallback);
+
+    await FlutterDownloader.enqueue(
       url: apkUrl,
       savedDir: '/storage/emulated/0/Download',
       fileName: 'app_update.apk',
       showNotification: true,
       openFileFromNotification: true,
     );
-
-    FlutterDownloader.registerCallback((id, status, progress) {
-      if (status == DownloadTaskStatus.complete) {
-        OpenFile.open('/storage/emulated/0/Download/app_update.apk');
-      }
-    });
   }
 
   @override
@@ -182,11 +192,11 @@ class _AuthPageState extends State<AuthPage> {
         ],
       ),
       body: Padding(
-        padding: const EdgeInsets.all(20.0),
+        padding: const EdgeInsets.fromLTRB(20, 0, 20, 0),
         child: Center(
           child: SingleChildScrollView(
             child: Column(
-              mainAxisAlignment: MainAxisAlignment.center,
+              //mainAxisAlignment: MainAxisAlignment.center,
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
                 // FutureBuilder pour charger l'image
@@ -294,5 +304,16 @@ class _AuthPageState extends State<AuthPage> {
         ),
       ),
     );
+  }
+}
+
+
+
+
+@pragma('vm:entry-point') // 🔥 Obligatoire pour le callback
+void downloadCallback(String id, int status, int progress) {
+  print('Download task ($id) is in status ($status) and progress ($progress)');
+  if (status == DownloadTaskStatus.complete.index) {
+    OpenFile.open('/storage/emulated/0/Download/app_update.apk');
   }
 }

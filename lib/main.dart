@@ -1,4 +1,6 @@
 import 'package:firebase_core/firebase_core.dart';
+import 'package:flutter_downloader/flutter_downloader.dart';
+import 'package:gest_stock/newVersion/admin/add_account.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:flutter/material.dart';
 import 'package:gest_stock/newVersion/admin/add_product.dart';
@@ -20,7 +22,7 @@ import 'package:gest_stock/newVersion/vendeur/vente.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
-
+ //await FlutterDownloader.initialize(debug: true);
   // 🔥 Initialisation de Firebase
   await Firebase.initializeApp();
 
@@ -54,6 +56,7 @@ class MyApp extends StatelessWidget {
         '/homePageAdmin': (context) => HomePageAdmin(),
         '/addProduct': (context) => AjouterProduitPage(),
         '/stats': (context) => StatistiquesPage(),
+        '/addAccount': (context) => AjouterUtilisateurPage(),
 
         //caisier
         '/homePageCaisier': (context) => AccueilCaissierPage(),

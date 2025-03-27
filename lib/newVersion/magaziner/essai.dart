@@ -1,9 +1,9 @@
+
+
+
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'dart:math';
-import 'package:gest_stock/newVersion/magaziner/convertXof.dart';
-import 'package:mailer/mailer.dart';
-import 'package:mailer/smtp_server/gmail.dart';
 
 class ValiderCommandePage extends StatefulWidget {
   final String commandId;
@@ -18,7 +18,7 @@ class ValiderCommandePage extends StatefulWidget {
 class _ValiderCommandePageState extends State<ValiderCommandePage> {
   final _formKey = GlobalKey<FormState>();
   double _fraisAnnexes = 0.0;
-  double _margeBeneficiaire = 0.30; // Marge bénéficiaire de 20%
+  double _margeBeneficiaire = 0.20; // Marge bénéficiaire de 20%
   double _prixVenteMarche = 0.0;
   List<TextEditingController> _prixTotalControllers = [];
   List<TextEditingController> _prixVenteMarcheControllers = [];
@@ -26,26 +26,22 @@ class _ValiderCommandePageState extends State<ValiderCommandePage> {
 
   // List pour stocker les données calculées pour chaque article
   List<Map<String, dynamic>> _validatedArticles = [];
-  bool isLoading = false; // Indicateur de chargement
 
   @override
   void initState() {
     super.initState();
     for (var article in widget.articles) {
       _validatedArticles.add({
-        'id': article['id'],
+        'id': article['name'],
         'name': article['name'],
         'prixTotal': article['prixTotal'],
         'poids': article['poids'],
-        'quantity': article['quantity'],
+        'quantite': article['quantity'],
         'gamme': article['gamme'],
         'prixRevientUnitaire': 0.0,
         'prixVenteUnitaire': 0.0,
         'type': article['type'],
         'prixVenteMarche': _prixVenteMarche,
-        'prixTotalAchat': article['prixTotal'],
-        'prixVenteTotal': 0.0,
-        'Pvp': 0.0,
       });
 
       // Initialiser les contrôleurs avec les valeurs existantes
@@ -53,129 +49,70 @@ class _ValiderCommandePageState extends State<ValiderCommandePage> {
           .add(TextEditingController(text: article['prixTotal'].toString()));
       _prixVenteMarcheControllers
           .add(TextEditingController(text: _prixVenteMarche.toString()));
-      _quantiteControllers
-          .add(TextEditingController(text: article['quantity'].toString()));
+      _quantiteControllers.add(TextEditingController(text: article['quantite'].toString()));
+ 
     }
   }
 
-
-void _validerCommande() async {
-  setState(() {
-    isLoading = true;
-  });
-
-  try {
-    DocumentSnapshot doc = await FirebaseFirestore.instance
-        .collection('taux_conversion')
-        .doc('NGN_XOF')
-        .get();
-
-    double tauxNGNtoXOF =
-        ((doc.data() as Map<String, dynamic>?)?['NGN_XOF'] as num?)?.toDouble() ?? 0.4;
-
+  void _validerCommande() async {
     if (_formKey.currentState!.validate()) {
       _formKey.currentState!.save();
 
-      for (int i = 0; i < _validatedArticles.length; i++) {
-        double prixTotalNGN =
-            double.tryParse(_prixTotalControllers[i].text) ?? 0.0;
-        double prixTotalXOF = prixTotalNGN * tauxNGNtoXOF;
-        _validatedArticles[i]['prixTotal'] = prixTotalXOF;
-      }
-
-      List<String> alertesProduits = [];
-
+      // Calcul du prix de revient total
+      double prixRevientTotal = 0.0;
       _validatedArticles.forEach((article) {
-        double prixTotal = (article['prixTotal'] as num).toDouble();
-        double quantity = (article['quantity'] as num).toDouble();
-        double pvm = (article['prixVenteMarche'] as num).toDouble();
-
-        double prixVenteTotal = prixTotal * 1.3;
-        double prixVentePrevisionnel = prixVenteTotal / quantity;
-        double prixVentePrevisionnelArrondi = prixVentePrevisionnel.ceilToDouble();
-        double diff = (pvm - prixVentePrevisionnelArrondi).abs();
-
-        double tolerance = 0;
-        if (pvm < 1000) {
-          tolerance = 50;
-        } else if (pvm < 5000) {
-          tolerance = 100;
-        } else if (pvm < 8000) {
-          tolerance = 150;
-        } else if (pvm < 10000) {
-          tolerance = 200;
-        } else if (pvm < 20000) {
-          tolerance = 500;
-        }
-
-        if (diff > tolerance) {
-          alertesProduits.add(
-            "${article['nom']} → PVM: ${pvm.toInt()} FCFA, PVP: ${prixVentePrevisionnelArrondi.toInt()} FCFA, "
-            "Tolérance: $tolerance FCFA, Différence: $diff FCFA",
-          );
-        }
-
-        article['prixVenteTotal'] = prixVenteTotal;
-        article['Pvp'] = prixVentePrevisionnelArrondi;
+        prixRevientTotal += article['prixTotal'];
       });
 
-      if (alertesProduits.isNotEmpty) {
-        await envoyerEmail(alertesProduits);
-      }
+      // Ajout des frais annexes au prix de revient total
+      prixRevientTotal += _fraisAnnexes;
 
+      // Calcul du prix de revient unitaire et du prix de vente
+      double totalQuantite = _validatedArticles.fold(0.0, (total, article) {
+        return total + (article['quantite'] as num).toDouble();
+      });
+
+      _validatedArticles.forEach((article) {
+        
+        double prixRevientUnitaire = (article['prixTotal'] as num).toDouble() /
+                (article['quantite'] as num).toDouble() +
+            (_fraisAnnexes / totalQuantite);
+
+        // arrondir du prix de reviens unitaire à l'entier supérieur
+        double prixRevientUnitaireArrondi = prixRevientUnitaire.ceilToDouble();
+
+        article['prixRevientUnitaire'] = prixRevientUnitaireArrondi;
+
+        double prixVenteUnitaire =
+            prixRevientUnitaireArrondi * (1 + _margeBeneficiaire);
+
+        // arrondir du prix de vente unitaire à l'entier supérieur
+        double prixVenteUnitaireArrondi = prixVenteUnitaire.ceilToDouble();
+
+        article['prixVenteUnitaire'] = prixVenteUnitaireArrondi;
+      });
+
+      // Mise à jour de Firestore avec les informations calculées
       await FirebaseFirestore.instance
           .collection('commandes')
           .doc(widget.commandId)
           .update({
         'statut': 'validée',
         'articles': _validatedArticles,
+        'prixRevientTotal': prixRevientTotal,
         'fraisAnnexes': _fraisAnnexes,
-        'margeBeneficiaire': _margeBeneficiaire,
-        'dateValidation': FieldValue.serverTimestamp(),
-        'totalArticles': // la somme des quantites, pour le stock
-            _validatedArticles.fold(0, (sum, article) {
-          return (sum as int) + (article['quantity'] as num).toInt();
-        }),
       });
 
+      // Appel de la fonction pour mettre à jour le stock après validation de la commande
+      await mettreAJourStock(widget.commandId, _validatedArticles);
+
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('✅ Commande validée avec succès!')),
+        SnackBar(content: Text('Commande validée avec succès!')),
       );
 
       Navigator.pop(context);
     }
-  } catch (e) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text('❌ Erreur : ${e.toString()}')),
-    );
   }
-
-  setState(() {
-    isLoading = false;
-  });
-}
-
-Future<void> envoyerEmail(List<String> alertesProduits) async {
-  String username = 'hounganbilel@gmail.com';
-  String password = 'rabv cjiz haoj vswm';
-
-  final smtpServer = gmail(username, password);
-
-  final message = Message()
-    ..from = Address(username, 'SusCosmétics Alertes')
-    ..recipients.add('admin@exemple.com') // Remplace avec l'email de l'admin
-    ..subject = '🚨 Alerte sur des écarts de prix !'
-    ..text = "Attention, certains produits dépassent la tolérance :\n\n" +
-        alertesProduits.join("\n");
-
-  try {
-    await send(message, smtpServer);
-    print('📧 Email envoyé avec succès!');
-  } catch (e) {
-    print('❌ Erreur lors de l\'envoi de l\'email: $e');
-  }
-}
-
 
   Future<void> mettreAJourStock(
       String commandId, List<dynamic> articles) async {
@@ -188,8 +125,7 @@ Future<void> envoyerEmail(List<String> alertesProduits) async {
         String articleId = (article['id'] ?? '')
             .toString(); // S'assurer que c'est une String non vide
         String name = (article['name'] ?? 'Article inconnu').toString();
-        int pvp = (article['Pvp'] ?? 0) as int;
-        int quantiteAjoutee = (article['quantity'] ?? 0) as int;
+        int quantiteAjoutee = (article['quantite'] ?? 0) as int;
         double prixRevient = (article['prixRevientUnitaire'] ?? 0.0).toDouble();
         double prixVente = (article['prixVenteUnitaire'] ?? 0.0).toDouble();
 
@@ -208,7 +144,6 @@ Future<void> envoyerEmail(List<String> alertesProduits) async {
           await stockRef.doc(articleId).update({
             'quantiteDisponible': quantiteExistante + quantiteAjoutee,
             'derniereMiseAJour': FieldValue.serverTimestamp(),
-            'pvp': pvp
           });
 
           print(
@@ -221,8 +156,7 @@ Future<void> envoyerEmail(List<String> alertesProduits) async {
             'prixRevientUnitaire': prixRevient,
             'prixVenteUnitaire': prixVente,
             'derniereMiseAJour': FieldValue.serverTimestamp(),
-            'prixVenteMarche': article['prixVenteMarche'],
-            'pvp': pvp
+            'prixVenteMarche': article['prixVenteMarche']
           });
 
           print("Nouvel article ajouté au stock: $name");
@@ -305,14 +239,14 @@ Future<void> envoyerEmail(List<String> alertesProduits) async {
                             ),
                             TextFormField(
                               initialValue: _validatedArticles[index]
-                                      ['quantity']
+                                      ['quantite']
                                   .toString(),
                               decoration:
                                   InputDecoration(labelText: 'Quantité'),
                               keyboardType: TextInputType.number,
                               onSaved: (value) {
                                 if (value != null && value.isNotEmpty) {
-                                  _validatedArticles[index]['quantity'] =
+                                  _validatedArticles[index]['quantite'] =
                                       int.parse(value);
                                 }
                               },
@@ -351,21 +285,9 @@ Future<void> envoyerEmail(List<String> alertesProduits) async {
               ),
               const SizedBox(height: 20),
               ElevatedButton(
-                onPressed: isLoading
-                    ? null
-                    : _validerCommande, // Désactiver si chargement
+                onPressed: _validerCommande,
                 style: ElevatedButton.styleFrom(backgroundColor: Colors.green),
-                child: isLoading
-                    ? SizedBox(
-                        width: 20,
-                        height: 20,
-                        child: CircularProgressIndicator(
-                          valueColor:
-                              AlwaysStoppedAnimation<Color>(Colors.white),
-                          strokeWidth: 2,
-                        ),
-                      )
-                    : Text('Confirmer la validation'),
+                child: Text('Confirmer la validation'),
               ),
             ],
           ),

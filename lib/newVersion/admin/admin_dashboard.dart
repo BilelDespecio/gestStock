@@ -51,9 +51,9 @@ class _HomePageAdminState extends State<HomePageAdmin> {
         var stockData = stockMap[produitNom];
         int quantiteDisponible = stockData?['quantiteDisponible'] ?? 0;
         double prixVente = stockData?['prixVenteUnitaire']?.toDouble() ?? 0.0;
-        
 
         return {
+          'id': prodDoc.id,
           'gamme': produitData['gamme'],
           'nom': produitNom,
           'prixVente': prixVente,
@@ -79,7 +79,9 @@ class _HomePageAdminState extends State<HomePageAdmin> {
       } else {
         _filteredProducts = _allProducts
             .where((product) =>
-                product['nom'].toLowerCase().contains(query.toLowerCase()))
+                product['nom'].toLowerCase().contains(query.toLowerCase()) ||
+                product['gamme'].toLowerCase().contains(query.toLowerCase()) ||
+                product['type'].toLowerCase().contains(query.toLowerCase()))
             .toList();
       }
     });
@@ -118,11 +120,33 @@ class _HomePageAdminState extends State<HomePageAdmin> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Tableau de bord'),
+        title: const Text('Admin Dashbord', style: TextStyle(fontSize: 16)),
         centerTitle: true,
         actions: [
           IconButton(
-            icon: const Icon(Icons.refresh),
+            icon: Icon(Icons.add_shopping_cart_rounded,
+                size: 16, color: Colors.black),
+            onPressed: () {
+              Navigator.pushNamed(context, '/addProduct');
+            },
+            tooltip: "Ajouter un produit",
+          ),
+          
+          IconButton(
+            icon: Icon(Icons.account_circle_outlined, size: 16),
+            onPressed: () {
+               Navigator.pushNamed(context, '/addAccount');
+            },
+            tooltip: "Ajouter utilisaeur",
+          ), IconButton(
+            icon: Icon(Icons.bar_chart, size: 16),
+            onPressed: () {
+               Navigator.pushNamed(context, '/stats');
+            },
+            tooltip: "Statistiques",
+          ),
+          IconButton(
+            icon: const Icon(Icons.refresh, size: 16, color: Colors.black),
             onPressed: () {
               setState(() {
                 _loadData(); // Recharge les données
@@ -133,7 +157,7 @@ class _HomePageAdminState extends State<HomePageAdmin> {
             },
           ),
         ],
-        backgroundColor: Colors.blue.shade800, // Bleu foncé pour un aspect pro
+        backgroundColor: Colors.white, // Bleu foncé pour un aspect pro
 
         elevation: 4,
       ),
@@ -141,60 +165,7 @@ class _HomePageAdminState extends State<HomePageAdmin> {
         padding: const EdgeInsets.all(16.0),
         child: Column(
           children: [
-            Row(
-              mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-              children: [
-                // Texte "Ajouter produit" avec un style amélioré
-
-                // Bouton avec icône pour ajouter un produit
-                Container(
-                  decoration: BoxDecoration(
-                    color: Colors.green, // Couleur du bouton
-                    borderRadius: BorderRadius.circular(12),
-                  ),
-                  child: Row(
-                    children: [
-                      Padding(
-                        padding: const EdgeInsets.fromLTRB(5, 5, 0, 5),
-                        child: Text(
-                          'Ajouter produit',
-                          style: TextStyle(
-                            fontSize: 16,
-                            color: Colors.white,
-                          ),
-                        ),
-                      ),
-                      IconButton(
-                        icon: Icon(Icons.add_shopping_cart_rounded, size: 28),
-                        onPressed: () {
-                          Navigator.pushNamed(context, '/addProduct');
-                        },
-                        tooltip: "Ajouter un produit",
-                      ),
-                    ],
-                  ),
-                ),
-
-                // Bouton pour voir les statistiques avec un design modernisé
-                ElevatedButton.icon(
-                  onPressed: () {
-                    Navigator.pushNamed(context, '/stats');
-                  },
-                  icon: Icon(Icons.bar_chart, size: 20),
-                  label: Text('Stats'),
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: Colors.blueAccent, // Couleur du bouton
-                    foregroundColor: Colors.white, // Couleur du texte et icône
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(12),
-                    ),
-                    padding: EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-                  ),
-                ),
-              ],
-            ),
-            const SizedBox(height: 10),
-            Row(
+           Row(
               children: [
                 Expanded(
                   child: Container(
@@ -247,6 +218,7 @@ class _HomePageAdminState extends State<HomePageAdmin> {
                       itemCount: _filteredProducts.length,
                       itemBuilder: (context, index) {
                         final produit = _filteredProducts[index];
+                        final id = produit['id'];
                         final int quantite = produit['quantiteDisponible'];
                         final double prix = produit['prixVente'];
                         final String imageUrl = produit['image'] ?? '';
@@ -254,7 +226,6 @@ class _HomePageAdminState extends State<HomePageAdmin> {
                             'URL de l\'image : $imageUrl'); // Vérifier la valeur de l'URL
                         final int seuilCritique = produit['seuil_critique'];
                         final int seuilAlerte = produit['seuil_alerte'];
-                        
 
                         // Déterminer le message et la couleur du ruban
                         String? rubanText;
@@ -344,10 +315,9 @@ class _HomePageAdminState extends State<HomePageAdmin> {
                                       child: Text(
                                         produit['gamme'] ?? 'Nom inconnu',
                                         style: const TextStyle(
-                                          fontSize: 14,
-                                          fontWeight: FontWeight.bold,
-                                          color: Colors.blue
-                                        ),
+                                            fontSize: 14,
+                                            fontWeight: FontWeight.bold,
+                                            color: Colors.blue),
                                         overflow: TextOverflow.ellipsis,
                                       ),
                                     ),
@@ -366,8 +336,8 @@ class _HomePageAdminState extends State<HomePageAdmin> {
                                     Row(
                                       children: [
                                         Padding(
-                                          padding:
-                                              const EdgeInsets.fromLTRB(5, 0, 5, 0),
+                                          padding: const EdgeInsets.fromLTRB(
+                                              5, 0, 5, 0),
                                           child: Text(
                                             produit['type'] ?? 'Type',
                                             style: const TextStyle(
@@ -377,8 +347,8 @@ class _HomePageAdminState extends State<HomePageAdmin> {
                                           ),
                                         ),
                                         Padding(
-                                          padding:
-                                              const EdgeInsets.fromLTRB(5, 0, 5, 0),
+                                          padding: const EdgeInsets.fromLTRB(
+                                              5, 0, 5, 0),
                                           child: Text(
                                             produit['poids'] ?? 'poids',
                                             style: const TextStyle(

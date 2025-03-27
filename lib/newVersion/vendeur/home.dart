@@ -78,7 +78,9 @@ class _HomePageVendeurState extends State<HomePageVendeur> {
       } else {
         _filteredProducts = _allProducts
             .where((product) =>
-                product['nom'].toLowerCase().contains(query.toLowerCase()))
+        product['nom'].toLowerCase().contains(query.toLowerCase())||
+            product['gamme'].toLowerCase().contains(query.toLowerCase())||
+            product['type'].toLowerCase().contains(query.toLowerCase()))
             .toList();
       }
     });
@@ -120,6 +122,7 @@ class _HomePageVendeurState extends State<HomePageVendeur> {
         title: const Text('Tableau de bord'),
         centerTitle: true,
         actions: [
+          IconButton(onPressed: (){Navigator.pushReplacementNamed(context, '/homePageCaisier');}, icon: Icon(Icons.paid_outlined)),
           IconButton(
             icon: const Icon(Icons.refresh),
             onPressed: () {
@@ -132,7 +135,7 @@ class _HomePageVendeurState extends State<HomePageVendeur> {
             },
           ),
         ],
-         backgroundColor: Colors.blue.shade800, // Bleu foncé pour un aspect pro
+         backgroundColor: Colors.white, // Bleu foncé pour un aspect pro
         
         elevation: 4,
       ),

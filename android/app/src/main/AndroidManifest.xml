@@ -2,17 +2,36 @@
     package="com.example.gest_stock">
     
     <!-- Permissions essentielles -->
+    <uses-feature
+        android:name="android.hardware.camera"
+        android:required="false" />
+
     <uses-permission android:name="android.permission.CAMERA"/>
     <uses-permission android:name="android.permission.INTERNET"/>
 
     <!-- Scoped Storage (Android 10+) -->
-    <uses-permission android:name="android.permission.READ_MEDIA_*"/>
+    <uses-permission android:name="android.permission.INTERNET"/>
+    <uses-permission android:name="android.permission.MANAGE_EXTERNAL_STORAGE"/>
+    <uses-permission android:name="android.permission.REQUEST_INSTALL_PACKAGES"/>
+
     
     <application
         android:requestLegacyExternalStorage="true"
         android:label="gest_stock"
         android:icon="@mipmap/ic_launcher">
-        
+        <!-- Permet de partager des fichiers -->
+        <!--
+        <provider
+            android:name="androidx.core.content.FileProvider"
+            android:authorities="${applicationId}.fileprovider"
+            android:grantUriPermissions="true"
+            android:exported="false">
+            <meta-data
+                android:name="android.support.FILE_PROVIDER_PATHS"
+                android:resource="@xml/file_paths"/>
+        </provider>
+        -->
+
         <!-- Activité principale -->
         <activity
             android:name=".MainActivity"
@@ -40,7 +59,7 @@
             android:theme="@style/Theme.AppCompat.Light.NoActionBar"/>
 
         <!-- FileProvider pour partager des fichiers -->
-        <provider
+       <!--  <provider
             android:name="androidx.core.content.FileProvider"
             android:authorities="${applicationId}.provider"
             android:exported="false"
@@ -48,7 +67,16 @@
             <meta-data
                 android:name="android.support.FILE_PROVIDER_PATHS"
                 android:resource="@xml/provider_paths"/>
-        </provider>
+        </provider>-->
+        <provider
+    android:name="vn.hunghd.flutterdownloader.DownloadedFileProvider"
+    android:authorities="${applicationId}.flutter_downloader.provider"
+    android:grantUriPermissions="true"
+    android:exported="false">
+    <meta-data
+        android:name="android.support.FILE_PROVIDER_PATHS"
+        android:resource="@xml/flutter_downloader_provider_paths"/>
+</provider>
 
         <meta-data
             android:name="flutterEmbedding"

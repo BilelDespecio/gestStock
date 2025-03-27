@@ -107,7 +107,7 @@ class CommandesList extends StatelessWidget {
                             totalQuantite:
                                 totalQuantite ?? 0.0, // Utiliser 0.0 si null
                             prixRevientTotal:
-                                prixRevientTotal ?? 0.0, // Utiliser 0.0 si null
+                                prixRevientTotal ?? 0.0, prixVenteMarche: 0.0, // Utiliser 0.0 si null
                           ),
                         ),
                       );

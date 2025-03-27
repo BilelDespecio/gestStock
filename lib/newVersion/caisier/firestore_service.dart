@@ -17,7 +17,7 @@ class FirestoreService {
       'client': numeroWhatsApp,
       'factureUrl': factureUrl, // Ajout du lien de la facture
       'dateValidation': Timestamp.now(),
-      'destockage': true, // On peut gérer le stock plus tard
+      'destockage': false, // On peut gérer le stock plus tard
     });
   }
 }

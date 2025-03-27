@@ -16,17 +16,21 @@ class _StatistiquesPageState extends State<StatistiquesPage> {
   double _totalVentes = 0.0;
   int _totalNbrCommande = 0;
   List<FlSpot> _salesData = [];
+  final TextEditingController _tauxController = TextEditingController();
+  bool _isLoading = false;
 
   @override
   void initState() {
     super.initState();
     _fetchData(); // Charger les données au démarrage
+    _fetchTauxConversion(); // Charger le taux initial
   }
 
   Future<void> _fetchData() async {
     try {
       // 🔹 Récupérer le nombre total de produits
-      var produitsSnapshot = await FirebaseFirestore.instance.collection('stock').get();
+      var produitsSnapshot =
+          await FirebaseFirestore.instance.collection('stock').get();
       int totalProduits = produitsSnapshot.docs.length;
 
       // 🔹 Récupérer les produits en stock critique et alerte
@@ -44,9 +48,9 @@ class _StatistiquesPageState extends State<StatistiquesPage> {
       // 🔹 Récupérer les ventes en fonction du filtre sélectionné
       double totalVentes = 0.0;
       List<FlSpot> salesData = [];
-      
 
-      var ventesSnapshot = await FirebaseFirestore.instance.collection('ventes').get();
+      var ventesSnapshot =
+          await FirebaseFirestore.instance.collection('ventes').get();
       int totalNbrVente = ventesSnapshot.docs.length;
       for (var doc in ventesSnapshot.docs) {
         Timestamp dateVente = doc['date'];
@@ -56,9 +60,14 @@ class _StatistiquesPageState extends State<StatistiquesPage> {
         DateTime now = DateTime.now();
 
         bool isValid = false;
-        if (_selectedFilter == 'Jour' && venteDate.day == now.day && venteDate.month == now.month && venteDate.year == now.year) {
+        if (_selectedFilter == 'Jour' &&
+            venteDate.day == now.day &&
+            venteDate.month == now.month &&
+            venteDate.year == now.year) {
           isValid = true;
-        } else if (_selectedFilter == 'Mois' && venteDate.month == now.month && venteDate.year == now.year) {
+        } else if (_selectedFilter == 'Mois' &&
+            venteDate.month == now.month &&
+            venteDate.year == now.year) {
           isValid = true;
         } else if (_selectedFilter == 'Année' && venteDate.year == now.year) {
           isValid = true;
@@ -70,7 +79,8 @@ class _StatistiquesPageState extends State<StatistiquesPage> {
         }
       }
 
-      var commandesSnapshot = await FirebaseFirestore.instance.collection('commandes').get();
+      var commandesSnapshot =
+          await FirebaseFirestore.instance.collection('commandes').get();
       int totalNbrCommande = commandesSnapshot.docs.length;
 
       // Mettre à jour l'état
@@ -88,12 +98,60 @@ class _StatistiquesPageState extends State<StatistiquesPage> {
     }
   }
 
+  /// Récupère le taux de conversion depuis Firestore
+  Future<void> _fetchTauxConversion() async {
+    try {
+      DocumentSnapshot doc = await FirebaseFirestore.instance
+          .collection('taux_conversion')
+          .doc('NGN_XOF')
+          .get();
+
+      if (doc.exists) {
+        setState(() {
+          _tauxController.text = doc['NGN_XOF'].toString();
+        });
+      }
+    } catch (e) {
+      print("Erreur de récupération du taux : $e");
+    }
+  }
+
+  /// Met à jour le taux de conversion dans Firestore
+  Future<void> _updateTauxConversion() async {
+    setState(() {
+      _isLoading = true;
+    });
+
+    try {
+      double newTaux = double.tryParse(_tauxController.text) ?? 0.0;
+
+      await FirebaseFirestore.instance
+          .collection('taux_conversion')
+          .doc('NGN_XOF')
+          .update({'NGN_XOF': newTaux});
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text("Taux mis à jour avec succès !")),
+      );
+    } catch (e) {
+      print("Erreur de mise à jour : $e");
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text("Erreur lors de la mise à jour")),
+      );
+    }
+
+    setState(() {
+      _isLoading = false;
+    });
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
         title: const Text('Statistiques'),
-         backgroundColor: Colors.blue.shade800, // Bleu foncé pour un aspect pro
+        backgroundColor: const Color.fromARGB(
+            255, 255, 255, 255), // Bleu foncé pour un aspect pro
         centerTitle: true,
         elevation: 4,
       ),
@@ -103,11 +161,11 @@ class _StatistiquesPageState extends State<StatistiquesPage> {
           children: [
             // 🔹 Filtre de période
             Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              mainAxisAlignment: MainAxisAlignment.start,
               children: [
                 const Text(
                   "Filtrer par :",
-                  style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+                  style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold),
                 ),
                 DropdownButton<String>(
                   value: _selectedFilter,
@@ -127,37 +185,74 @@ class _StatistiquesPageState extends State<StatistiquesPage> {
                     );
                   }).toList(),
                 ),
+                SizedBox(width: 50),
+                Expanded(
+                  child: SizedBox(
+                    height: 30,
+                    child: TextFormField(
+                      controller: _tauxController,
+                      decoration: InputDecoration(
+                        labelText: "Taux de conversion NGN → XOF",
+                        labelStyle: TextStyle(fontSize: 12),
+                        border: OutlineInputBorder(),
+                      ),
+                      keyboardType: TextInputType.number,
+                    ),
+                  ),
+                ),
+                IconButton(
+                    onPressed: _isLoading ? null : _updateTauxConversion,
+                    icon: _isLoading
+                        ? CircularProgressIndicator(color: Colors.white)
+                        : Icon(Icons.update, color: Colors.blueAccent,))
               ],
             ),
             const SizedBox(height: 10),
-            
+
             // 🔹 Affichage des statistiques
-          
+
             Row(
               mainAxisAlignment: MainAxisAlignment.spaceEvenly,
               children: [
-                GestureDetector(onTap: (){ Navigator.pop(context);},child: _buildStatCard('Total Produits', _totalProduits.toString(), Colors.blue)),
-                GestureDetector(onTap:(){},child: _buildStatCard('Stock Critique', _stockCritique.toString(), Colors.red)),
-                GestureDetector(onTap: (){},child: _buildStatCard('Stock Alerte', _stockAlerte.toString(), Colors.orange)),
+                GestureDetector(
+                    onTap: () {
+                      Navigator.pop(context);
+                    },
+                    child: _buildStatCard('Total Produits',
+                        _totalProduits.toString(), Colors.blue)),
+                GestureDetector(
+                    onTap: () {},
+                    child: _buildStatCard('Stock Critique',
+                        _stockCritique.toString(), Colors.red)),
+                GestureDetector(
+                    onTap: () {},
+                    child: _buildStatCard('Stock Alerte',
+                        _stockAlerte.toString(), Colors.orange)),
               ],
-            ), 
+            ),
             const SizedBox(height: 10),
-              Row(
+            Row(
               mainAxisAlignment: MainAxisAlignment.spaceEvenly,
               children: [
-                GestureDetector(onTap: (){
-                  Navigator.pushNamed(context, '/historique');
-                },child: _buildStatCard('Total ventes', _totalNbrVente.toString(), Colors.red)),
+                GestureDetector(
+                    onTap: () {
+                      Navigator.pushNamed(context, '/historique');
+                    },
+                    child: _buildStatCard(
+                        'Total ventes', _totalNbrVente.toString(), Colors.red)),
                 GestureDetector(
                     onTap: () {
                       Navigator.pushNamed(context, '/gererCommandes');
                     },
-                    child: _buildStatCard('Total Commandes', _totalNbrCommande.toString(), Colors.orange)),
-                GestureDetector(onTap: (){},child: _buildStatCard('Montant Ventes', '${_totalVentes.toInt()} FCFA', Colors.green)),
+                    child: _buildStatCard('Total Commandes',
+                        _totalNbrCommande.toString(), Colors.orange)),
+                GestureDetector(
+                    onTap: () {},
+                    child: _buildStatCard('Montant Ventes',
+                        '${_totalVentes.toInt()} FCFA', Colors.green)),
               ],
             ),
-           
-            
+
             const SizedBox(height: 10),
 
             // 🔹 Graphique des ventes
@@ -188,7 +283,8 @@ class _StatistiquesPageState extends State<StatistiquesPage> {
             const SizedBox(height: 5),
             Text(
               value,
-              style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: color),
+              style: TextStyle(
+                  fontSize: 14, fontWeight: FontWeight.bold, color: color),
             ),
           ],
         ),
