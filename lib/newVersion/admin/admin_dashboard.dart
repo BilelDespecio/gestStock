@@ -51,6 +51,7 @@ class _HomePageAdminState extends State<HomePageAdmin> {
         var stockData = stockMap[produitNom];
         int quantiteDisponible = stockData?['quantiteDisponible'] ?? 0;
         double prixVente = stockData?['prixVenteUnitaire']?.toDouble() ?? 0.0;
+        double pvp = stockData?['pvp']?.toDouble() ?? 0.0;
 
         return {
           'id': prodDoc.id,
@@ -64,7 +65,9 @@ class _HomePageAdminState extends State<HomePageAdmin> {
           'code_barre': produitData['code_barre'] ?? '',
           'type': produitData['type'] ?? '',
           'poids': produitData['poids'] ?? '',
-          'description': produitData['description'] ?? ''
+          'description': produitData['description'] ?? '',
+          'prixDecide': produitData['prixDecide'] ?? 0.0,
+          'pvp': pvp,
         };
       }).toList();
 
@@ -131,17 +134,17 @@ class _HomePageAdminState extends State<HomePageAdmin> {
             },
             tooltip: "Ajouter un produit",
           ),
-          
           IconButton(
             icon: Icon(Icons.account_circle_outlined, size: 16),
             onPressed: () {
-               Navigator.pushNamed(context, '/addAccount');
+              Navigator.pushNamed(context, '/addAccount');
             },
             tooltip: "Ajouter utilisaeur",
-          ), IconButton(
+          ),
+          IconButton(
             icon: Icon(Icons.bar_chart, size: 16),
             onPressed: () {
-               Navigator.pushNamed(context, '/stats');
+              Navigator.pushNamed(context, '/stats');
             },
             tooltip: "Statistiques",
           ),
@@ -165,7 +168,7 @@ class _HomePageAdminState extends State<HomePageAdmin> {
         padding: const EdgeInsets.all(16.0),
         child: Column(
           children: [
-           Row(
+            Row(
               children: [
                 Expanded(
                   child: Container(
@@ -226,6 +229,13 @@ class _HomePageAdminState extends State<HomePageAdmin> {
                             'URL de l\'image : $imageUrl'); // Vérifier la valeur de l'URL
                         final int seuilCritique = produit['seuil_critique'];
                         final int seuilAlerte = produit['seuil_alerte'];
+                        // Vérifier si prixDecide est null ou non défini
+                        final double? prixDecide = produit['prixDecide'] != null
+                            ? (produit['prixDecide'] as num).toDouble()
+                            : null;
+
+                        final double pvp =
+                            (produit['pvp'] as num?)?.toDouble() ?? 0.0;
 
                         // Déterminer le message et la couleur du ruban
                         String? rubanText;
@@ -278,27 +288,6 @@ class _HomePageAdminState extends State<HomePageAdmin> {
                                                   Icons.image_not_supported,
                                                   size: 120),
                                         ),
-                                        /*Image.network(
-                                          imageUrl,
-                                          height: 100,
-                                          width: double.infinity,
-                                          fit: BoxFit.cover,
-                                          loadingBuilder: (context, child,
-                                              loadingProgress) {
-                                            if (loadingProgress == null) {
-                                              return child;
-                                            } else {
-                                              return const Center(
-                                                  child:
-                                                      CircularProgressIndicator());
-                                            }
-                                          },
-                                          errorBuilder:
-                                              (context, error, stackTrace) =>
-                                                  const Icon(
-                                                      Icons.image_not_supported,
-                                                      size: 120),
-                                        ),*/
                                       )
                                     else
                                       Container(
@@ -363,7 +352,7 @@ class _HomePageAdminState extends State<HomePageAdmin> {
                                       padding: const EdgeInsets.symmetric(
                                           horizontal: 5.0),
                                       child: Text(
-                                        'Prix: ${prix.toInt()} FCFA',
+                                        'Prix: ${prixDecide ?? pvp} FCFA', // Affiche prixDecide si dispo, sinon pvp
                                         style: const TextStyle(
                                             fontSize: 12, color: Colors.green),
                                       ),

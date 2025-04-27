@@ -1,6 +1,7 @@
 import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter_downloader/flutter_downloader.dart';
 import 'package:gest_stock/newVersion/admin/add_account.dart';
+import 'package:gest_stock/newVersion/magaziner/addStockShop.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:flutter/material.dart';
 import 'package:gest_stock/newVersion/admin/add_product.dart';
@@ -50,7 +51,7 @@ class MyApp extends StatelessWidget {
         '/gererCommandes': (context) => GestionCommandesPage(),
         '/ventesValidees': (context) => VentesValideesPage(),
         '/ventesEffectuees': (context) => VentesEffectueesPage(),
-        
+        '/chargerBoutique': (context) => ChargerBoutiquePage(),
 
         //admin
         '/homePageAdmin': (context) => HomePageAdmin(),

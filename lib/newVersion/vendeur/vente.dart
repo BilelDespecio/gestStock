@@ -128,7 +128,7 @@ class _VentePageState extends State<VentePage> {
 
                 // Rechercher le produit dans Firestore
                 QuerySnapshot result = await FirebaseFirestore.instance
-                    .collection('stock')
+                    .collection('stockBoutique')
                     .where('code_barre', isEqualTo: scannedCode)
                     .get();
 
@@ -383,7 +383,7 @@ class _VentePageState extends State<VentePage> {
 
             Expanded(
               child: StreamBuilder<QuerySnapshot>(
-                stream: FirebaseFirestore.instance.collection('stock').snapshots(),
+                stream: FirebaseFirestore.instance.collection('stockBoutique').snapshots(),
                 builder: (context, snapshot) {
                   if (!snapshot.hasData)
                     return Center(child: CircularProgressIndicator());

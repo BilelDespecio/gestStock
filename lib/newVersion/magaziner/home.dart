@@ -1,6 +1,7 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 import 'package:gest_stock/newVersion/detailProduct.dart';
+import 'package:gest_stock/newVersion/magaziner/addStockShop.dart';
 import 'package:mobile_scanner/mobile_scanner.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 
@@ -142,6 +143,15 @@ class _HomePageMagazinierState extends State<HomePageMagazinier> {
         backgroundColor: Colors.blue.shade800, // Bleu foncé pour un aspect pro
         centerTitle: true,
         elevation: 4,
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.add_shopping_cart),
+            onPressed: () {
+              // Logique pour rediriger sur chager stockBoutique
+              Navigator.pushNamed(context, '/chargerBoutique');
+            },
+          ),
+        ],
       ),
       body: Padding(
         padding: const EdgeInsets.fromLTRB(16, 2, 16, 2),

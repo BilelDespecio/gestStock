@@ -9,7 +9,7 @@ class DetailVentePage extends StatelessWidget {
 Future<void> _confirmerVente(BuildContext context) async {
   try {
     final venteRef = FirebaseFirestore.instance.collection('ventes').doc(vente.id);
-    final stockRef = FirebaseFirestore.instance.collection('stock');
+    final stockRef = FirebaseFirestore.instance.collection('stockBoutique');
 
     List<dynamic> articles = vente['articles']; // Liste des produits de la vente
 

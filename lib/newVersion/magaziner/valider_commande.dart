@@ -163,7 +163,7 @@ Future<void> envoyerEmail(List<String> alertesProduits) async {
 
   final message = Message()
     ..from = Address(username, 'SusCosmétics Alertes')
-    ..recipients.add('admin@exemple.com') // Remplace avec l'email de l'admin
+    ..recipients.add('losema1@yahoo.fr') // Remplace avec l'email de l'admin
     ..subject = '🚨 Alerte sur des écarts de prix !'
     ..text = "Attention, certains produits dépassent la tolérance :\n\n" +
         alertesProduits.join("\n");
@@ -208,7 +208,9 @@ Future<void> envoyerEmail(List<String> alertesProduits) async {
           await stockRef.doc(articleId).update({
             'quantiteDisponible': quantiteExistante + quantiteAjoutee,
             'derniereMiseAJour': FieldValue.serverTimestamp(),
-            'pvp': pvp
+            'pvp': pvp,
+            'prixRevientUnitaire': prixRevient,
+            'prixVenteUnitaire': prixVente,
           });
 
           print(
