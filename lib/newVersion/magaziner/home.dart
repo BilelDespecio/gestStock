@@ -2,6 +2,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 import 'package:gest_stock/newVersion/detailProduct.dart';
 import 'package:gest_stock/newVersion/magaziner/addStockShop.dart';
+import 'package:gest_stock/newVersion/magaziner/updateStockPvp.dart';
 import 'package:mobile_scanner/mobile_scanner.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 
@@ -98,8 +99,8 @@ class _HomePageMagazinierState extends State<HomePageMagazinier> {
       } else {
         _filteredProducts = _allProducts
             .where((product) =>
-                product['nom'].toLowerCase().contains(query.toLowerCase())||
-                product['gamme'].toLowerCase().contains(query.toLowerCase())||
+                product['nom'].toLowerCase().contains(query.toLowerCase()) ||
+                product['gamme'].toLowerCase().contains(query.toLowerCase()) ||
                 product['type'].toLowerCase().contains(query.toLowerCase()))
             .toList();
       }
@@ -149,6 +150,15 @@ class _HomePageMagazinierState extends State<HomePageMagazinier> {
             onPressed: () {
               // Logique pour rediriger sur chager stockBoutique
               Navigator.pushNamed(context, '/chargerBoutique');
+            },
+          ),
+          IconButton(
+            icon: const Icon(Icons.update),
+            onPressed: () async {
+              Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                      builder: (context) => const AdminToolsPage()));
             },
           ),
         ],
@@ -319,7 +329,7 @@ class _HomePageMagazinierState extends State<HomePageMagazinier> {
                     ),
                   ),
                 ),
-              const SizedBox(width: 2),
+                const SizedBox(width: 2),
                 Expanded(
                   child: ElevatedButton(
                     style: ElevatedButton.styleFrom(
@@ -393,7 +403,7 @@ class _HomePageMagazinierState extends State<HomePageMagazinier> {
               ],
             ),
             const SizedBox(height: 10),
-             Expanded(
+            Expanded(
               child: _filteredProducts.isEmpty
                   ? const Center(child: Text('Aucun produit trouvé.'))
                   : GridView.builder(
@@ -415,7 +425,6 @@ class _HomePageMagazinierState extends State<HomePageMagazinier> {
                             'URL de l\'image : $imageUrl'); // Vérifier la valeur de l'URL
                         final int seuilCritique = produit['seuil_critique'];
                         final int seuilAlerte = produit['seuil_alerte'];
-                        
 
                         // Déterminer le message et la couleur du ruban
                         String? rubanText;
@@ -505,10 +514,9 @@ class _HomePageMagazinierState extends State<HomePageMagazinier> {
                                       child: Text(
                                         produit['gamme'] ?? 'Nom inconnu',
                                         style: const TextStyle(
-                                          fontSize: 14,
-                                          fontWeight: FontWeight.bold,
-                                          color: Colors.blue
-                                        ),
+                                            fontSize: 14,
+                                            fontWeight: FontWeight.bold,
+                                            color: Colors.blue),
                                         overflow: TextOverflow.ellipsis,
                                       ),
                                     ),
@@ -527,8 +535,8 @@ class _HomePageMagazinierState extends State<HomePageMagazinier> {
                                     Row(
                                       children: [
                                         Padding(
-                                          padding:
-                                              const EdgeInsets.fromLTRB(5, 0, 5, 0),
+                                          padding: const EdgeInsets.fromLTRB(
+                                              5, 0, 5, 0),
                                           child: Text(
                                             produit['type'] ?? 'Type',
                                             style: const TextStyle(
@@ -538,8 +546,8 @@ class _HomePageMagazinierState extends State<HomePageMagazinier> {
                                           ),
                                         ),
                                         Padding(
-                                          padding:
-                                              const EdgeInsets.fromLTRB(5, 0, 5, 0),
+                                          padding: const EdgeInsets.fromLTRB(
+                                              5, 0, 5, 0),
                                           child: Text(
                                             produit['poids'] ?? 'poids',
                                             style: const TextStyle(
