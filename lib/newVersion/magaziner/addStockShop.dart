@@ -7,11 +7,12 @@ class ChargerBoutiquePage extends StatefulWidget {
 }
 
 class _ChargerBoutiquePageState extends State<ChargerBoutiquePage> {
-  TextEditingController _searchController = TextEditingController();
-  TextEditingController _quantityController = TextEditingController();
+  final TextEditingController _searchController = TextEditingController();
+  final TextEditingController _quantityController = TextEditingController();
   String _searchQuery = '';
   Map<String, dynamic>? _selectedProduct;
   List<Map<String, dynamic>> _products = [];
+  bool _isLoading = false;
 
   @override
   void initState() {
@@ -19,44 +20,56 @@ class _ChargerBoutiquePageState extends State<ChargerBoutiquePage> {
     _fetchProducts();
   }
 
-  // Fonction pour récupérer les produits existants
+  @override
+  void dispose() {
+    _searchController.dispose();
+    _quantityController.dispose();
+    super.dispose();
+  }
+
   Future<void> _fetchProducts() async {
+    setState(() => _isLoading = true);
     try {
       QuerySnapshot snapshot =
-          await FirebaseFirestore.instance.collection('stock').get();
+      await FirebaseFirestore.instance.collection('stock').get();
 
       setState(() {
         _products = snapshot.docs.map((doc) {
           final data = doc.data() as Map<String, dynamic>;
           return {
             'id': doc.id,
-            'nom': data['name'] ?? '',
+            'nom': data['nom'] ?? data['name'] ?? 'Sans nom',
             'gamme': data['gamme'] ?? '',
             'imageUrl': data['imageUrl'] ?? '',
             'type': data['type'] ?? '',
             'poids': data['poids'] ?? '',
-            'quantite': data['quantite'] ?? 0,
+            // Utilisez le bon nom de champ selon votre Firestore
+            'quantiteDisponible': data['quantiteDisponible'] ?? data['quantite'] ?? 0,
           };
         }).toList();
       });
     } catch (e) {
-      print('Erreur lors du chargement des produits: $e');
+      debugPrint('Erreur chargement produits: $e');
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Erreur lors du chargement des produits')),
+      );
+    } finally {
+      setState(() => _isLoading = false);
     }
   }
 
-  // Fonction pour ouvrir le BottomSheet de sélection
   void _showProductSelector(BuildContext context) {
     showModalBottomSheet(
       context: context,
       isScrollControlled: true,
-      shape: RoundedRectangleBorder(
+      shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
       ),
       builder: (context) {
         return StatefulBuilder(
           builder: (context, setModalState) {
             return Padding(
-              padding: const EdgeInsets.all(10),
+              padding: const EdgeInsets.all(16),
               child: Column(
                 mainAxisSize: MainAxisSize.min,
                 children: [
@@ -64,71 +77,44 @@ class _ChargerBoutiquePageState extends State<ChargerBoutiquePage> {
                     controller: _searchController,
                     decoration: InputDecoration(
                       labelText: 'Rechercher produit',
-                      prefixIcon: Icon(Icons.search),
+                      prefixIcon: const Icon(Icons.search),
                       border: OutlineInputBorder(
                         borderRadius: BorderRadius.circular(10),
                       ),
                     ),
-                    onChanged: (value) {
-                      setModalState(() {
-                        _searchQuery = value.toLowerCase();
-                      });
-                    },
+                    onChanged: (value) => setModalState(() => _searchQuery = value.toLowerCase()),
                   ),
-                  SizedBox(height: 10),
+                  const SizedBox(height: 16),
                   Expanded(
-                    child: _products.isEmpty
-                        ? Center(child: CircularProgressIndicator())
-                        : ListView(
-                            children: _products
-                                .where((product) =>
-                                    product['nom']
-                                        .toLowerCase()
-                                        .contains(_searchQuery) ||
-                                    product['gamme']
-                                        .toLowerCase()
-                                        .contains(_searchQuery))
-                                .map((product) {
-                              return ListTile(
-                                onTap: () {
-                                  setState(() {
-                                    _selectedProduct = product;
-                                  });
-                                  Navigator.pop(context);
-                                },
-                                leading: CircleAvatar(
-                                  radius: 25,
-                                  backgroundImage: product['imageUrl'] != null &&
-                                          product['imageUrl'].isNotEmpty
-                                      ? NetworkImage(product['imageUrl'])
-                                      : AssetImage('assets/images/logo.png')
-                                          as ImageProvider,
-                                ),
-                                title: Text(product['nom']),
-                                subtitle: Text('Gamme: ${product['gamme']}'),
-                                trailing: Column(
-                                  crossAxisAlignment: CrossAxisAlignment.end,
-                                  children: [
-                                    Text(
-                                      product['type'] ?? '',
-                                      style: TextStyle(
-                                        fontSize: 12,
-                                        color: Colors.blue,
-                                        fontWeight: FontWeight.bold,
-                                      ),
-                                    ),
-                                    Text(
-                                      product['poids'] ?? '',
-                                      style: TextStyle(
-                                        fontSize: 12,
-                                        color: Colors.grey,
-                                      ),
-                                    ),
-                                  ],
-                                ),
-                              );
-                            }).toList(),
-                          ),
+                    child: _isLoading
+                        ? const Center(child: CircularProgressIndicator())
+                        : _products.isEmpty
+                        ? const Center(child: Text('Aucun produit disponible'))
+                        : ListView.builder(
+                      itemCount: _products.length,
+                      itemBuilder: (context, index) {
+                        final product = _products[index];
+                        if (!product['nom'].toLowerCase().contains(_searchQuery) ) {
+                        return const SizedBox.shrink();
+                        }
+                        return ListTile(
+                        onTap: () {
+                          setState(() => _selectedProduct = product);
+                          Navigator.pop(context);
+                        },
+                        leading: CircleAvatar(
+                        radius: 25,
+                        backgroundImage: product['imageUrl'] != null &&
+                        product['imageUrl'].isNotEmpty
+                        ? NetworkImage(product['imageUrl'])
+                            : const AssetImage('assets/images/logo.png') as ImageProvider,
+                        ),
+                        title: Text(product['nom']),
+                        subtitle: Text('Gamme: ${product['gamme']}'),
+                        trailing: Text('${product['quantiteDisponible']} disponibles'),
+                        );
+                      },
+                    ),
                   ),
                 ],
               ),
@@ -139,68 +125,77 @@ class _ChargerBoutiquePageState extends State<ChargerBoutiquePage> {
     );
   }
 
-  // Fonction pour charger en boutique
   Future<void> _chargerProduit() async {
     if (_selectedProduct == null) {
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Veuillez sélectionner un produit')),
+        const SnackBar(content: Text('Veuillez sélectionner un produit')),
       );
       return;
     }
 
-    int? quantite = int.tryParse(_quantityController.text);
+    final quantite = int.tryParse(_quantityController.text);
     if (quantite == null || quantite <= 0) {
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Veuillez entrer une quantité valide')),
+        const SnackBar(content: Text('Veuillez entrer une quantité valide')),
       );
       return;
     }
 
+    setState(() => _isLoading = true);
     try {
-      final stockRef = FirebaseFirestore.instance.collection('stock').doc(_selectedProduct!['id']);
+      final stockRef = FirebaseFirestore.instance
+          .collection('stock')
+          .doc(_selectedProduct!['id']);
+
       final boutiqueRef = FirebaseFirestore.instance.collection('stockBoutique');
 
-      // Récupérer les infos actuelles du stock
-      DocumentSnapshot stockDoc = await stockRef.get();
-      int stockDisponible = (stockDoc['quantite'] ?? 0);
+      // Transaction pour garantir la cohérence des données
+      await FirebaseFirestore.instance.runTransaction((transaction) async {
+        final doc = await transaction.get(stockRef);
+        if (!doc.exists) throw Exception('Produit introuvable en stock');
 
-      if (quantite > stockDisponible) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Stock insuffisant (${stockDisponible} disponibles)')),
+        final stockDisponible = (doc['quantiteDisponible'] ?? doc['quantite'] ?? 0) as int;
+        if (quantite > stockDisponible) {
+          throw Exception('Stock insuffisant ($stockDisponible disponibles)');
+        }
+
+        // Ajout en boutique
+        transaction.set(
+          boutiqueRef.doc(),
+          {
+            'produitId': _selectedProduct!['id'],
+            'nom': _selectedProduct!['nom'],
+            'gamme': _selectedProduct!['gamme'],
+            'poids': _selectedProduct!['poids'],
+            'imageUrl': _selectedProduct!['imageUrl'],
+            'type': _selectedProduct!['type'],
+            'quantite': quantite,
+            'dateAjout': FieldValue.serverTimestamp(),
+          },
         );
-        return;
-      }
 
-      // Ajouter dans stockBoutique
-      await boutiqueRef.add({
-        'nom': _selectedProduct!['nom'],
-        'gamme': _selectedProduct!['gamme'],
-        'poids': _selectedProduct!['poids'],
-        'imageUrl': _selectedProduct!['imageUrl'],
-        'type': _selectedProduct!['type'],
-        'quantite': quantite,
-        'dateAjout': Timestamp.now(),
-      });
-
-      // Déduire du stock initial
-      await stockRef.update({
-        'quantite': stockDisponible - quantite,
+        // Mise à jour du stock
+        transaction.update(
+          stockRef,
+          {'quantiteDisponible': stockDisponible - quantite},
+        );
       });
 
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Produit chargé avec succès dans la boutique!')),
+        const SnackBar(content: Text('Produit chargé avec succès!')),
       );
 
-      // Réinitialiser
-      setState(() {
-        _selectedProduct = null;
-        _quantityController.clear();
-      });
+      // Réinitialisation
+      _quantityController.clear();
+      _selectedProduct = null;
+      await _fetchProducts(); // Rafraîchir les données
     } catch (e) {
-      print('Erreur lors du chargement: $e');
+      debugPrint('Erreur chargement produit: $e');
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Erreur lors du chargement du produit')),
+        SnackBar(content: Text('Erreur: ${e.toString()}')),
       );
+    } finally {
+      setState(() => _isLoading = false);
     }
   }
 
@@ -208,61 +203,60 @@ class _ChargerBoutiquePageState extends State<ChargerBoutiquePage> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: Text('Charger Boutique'),
+        title: const Text('Charger Boutique'),
       ),
       body: Padding(
-        padding: const EdgeInsets.all(16.0),
+        padding: const EdgeInsets.all(16),
         child: Column(
           children: [
-            // Bouton pour ouvrir la sélection
             ElevatedButton(
-              onPressed: () {
-                _showProductSelector(context);
-              },
-              child: Text('Choisir un produit'),
+              onPressed: () => _showProductSelector(context),
+              child: const Text('Sélectionner un produit'),
             ),
-            SizedBox(height: 20),
-            // Affichage du produit sélectionné
-            if (_selectedProduct != null)
-              Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Card(
-                    elevation: 4,
-                    child: ListTile(
-                      leading: CircleAvatar(
-                        backgroundImage: _selectedProduct!['imageUrl'] != null &&
-                                _selectedProduct!['imageUrl'].isNotEmpty
-                            ? NetworkImage(_selectedProduct!['imageUrl'])
-                            : AssetImage('assets/images/logo.png') as ImageProvider,
-                      ),
-                      title: Text(_selectedProduct!['nom']),
-                      subtitle: Text(
-                          'Gamme: ${_selectedProduct!['gamme']} - Type: ${_selectedProduct!['type']} - Poids: ${_selectedProduct!['poids']}'),
-                    ),
+            const SizedBox(height: 20),
+            if (_selectedProduct != null) ...[
+              Card(
+                child: ListTile(
+                  leading: CircleAvatar(
+                    backgroundImage: _selectedProduct!['imageUrl'] != null &&
+                        _selectedProduct!['imageUrl'].isNotEmpty
+                        ? NetworkImage(_selectedProduct!['imageUrl'])
+                        : const AssetImage('assets/images/logo.png') as ImageProvider,
                   ),
-                  SizedBox(height: 20),
-                  TextField(
-                    controller: _quantityController,
-                    keyboardType: TextInputType.number,
-                    decoration: InputDecoration(
-                      labelText: 'Quantité à charger',
-                      border: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(10),
-                      ),
-                    ),
+                  title: Text(_selectedProduct!['nom']),
+                  subtitle: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text('Gamme: ${_selectedProduct!['gamme']}'),
+                      Text('Type: ${_selectedProduct!['type']}'),
+                      Text('Poids: ${_selectedProduct!['poids']}'),
+                      Text('Disponible: ${_selectedProduct!['quantiteDisponible']}'),
+                    ],
                   ),
-                  SizedBox(height: 20),
-                  ElevatedButton.icon(
-                    onPressed: _chargerProduit,
-                    icon: Icon(Icons.save),
-                    label: Text('Charger en Boutique'),
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: Colors.green,
-                    ),
-                  ),
-                ],
+                ),
               ),
+              const SizedBox(height: 20),
+              TextField(
+                controller: _quantityController,
+                keyboardType: TextInputType.number,
+                decoration: const InputDecoration(
+                  labelText: 'Quantité à charger',
+                  border: OutlineInputBorder(),
+                ),
+              ),
+              const SizedBox(height: 20),
+              ElevatedButton.icon(
+                onPressed: _isLoading ? null : _chargerProduit,
+                icon: _isLoading
+                    ? const CircularProgressIndicator(color: Colors.white)
+                    : const Icon(Icons.save),
+                label: const Text('Charger en boutique'),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: Colors.green,
+                  minimumSize: const Size(double.infinity, 50),
+                ),
+              ),
+            ],
           ],
         ),
       ),

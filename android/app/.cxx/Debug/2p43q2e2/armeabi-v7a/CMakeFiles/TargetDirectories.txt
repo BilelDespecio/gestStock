@@ -1,0 +1,2 @@
+/home/billdespeco/Documents/projetAndro/gestStock/android/app/.cxx/Debug/2p43q2e2/armeabi-v7a/CMakeFiles/edit_cache.dir
+/home/billdespeco/Documents/projetAndro/gestStock/android/app/.cxx/Debug/2p43q2e2/armeabi-v7a/CMakeFiles/rebuild_cache.dir

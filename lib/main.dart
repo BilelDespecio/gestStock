@@ -20,6 +20,9 @@ import 'package:gest_stock/newVersion/magaziner/manage_commande.dart';
 import 'package:gest_stock/newVersion/vendeur/home.dart';
 import 'package:gest_stock/newVersion/vendeur/vente.dart';
 
+import 'newVersion/contact/add_contact_page.dart';
+import 'newVersion/contact/contact_list_page.dart';
+
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -71,6 +74,8 @@ class MyApp extends StatelessWidget {
         '/destockage': (context) => DestockagePage(),
         '/historique': (context) => HistoriquePage(),
 
+        '/contacts': (context) => const ContactsListPage(),
+        '/contacts/add': (context) => const AddContactPage(),
       },
     );
   }

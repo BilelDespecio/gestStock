@@ -61,7 +61,7 @@ class _HomePageMagazinierState extends State<HomePageMagazinier> {
           await FirebaseFirestore.instance.collection('stock').get();
 
       Map<String, dynamic> stockMap = {
-        for (var stock in stockSnapshot.docs) stock['name']: stock.data()
+        for (var stock in stockSnapshot.docs) stock['nom']: stock.data()
       };
 
       List<Map<String, dynamic>> products = produitSnapshot.docs.map((prodDoc) {
@@ -70,7 +70,8 @@ class _HomePageMagazinierState extends State<HomePageMagazinier> {
 
         var stockData = stockMap[produitNom];
         int quantiteDisponible = stockData?['quantiteDisponible'] ?? 0;
-        double prixVente = stockData?['prixVenteUnitaire']?.toDouble() ?? 0.0;
+        double prixVente = stockData?['pvp']?.toDouble() ?? 0.0;
+
 
         return {
           'gamme': produitData['gamme'],

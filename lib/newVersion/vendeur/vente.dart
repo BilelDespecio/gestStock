@@ -113,6 +113,8 @@ class _VentePageState extends State<VentePage> {
       print("Erreur scan: $e");
     }
   } */
+
+
  void _scannerCodeBarres() {
     showDialog(
       context: context,
@@ -383,7 +385,7 @@ class _VentePageState extends State<VentePage> {
 
             Expanded(
               child: StreamBuilder<QuerySnapshot>(
-                stream: FirebaseFirestore.instance.collection('stockBoutique').snapshots(),
+                stream: FirebaseFirestore.instance.collection('stock').snapshots(),
                 builder: (context, snapshot) {
                   if (!snapshot.hasData)
                     return Center(child: CircularProgressIndicator());

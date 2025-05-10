@@ -18,7 +18,7 @@ class ValiderCommandePage extends StatefulWidget {
 class _ValiderCommandePageState extends State<ValiderCommandePage> {
   final _formKey = GlobalKey<FormState>();
   double _fraisAnnexes = 0.0;
-  double _margeBeneficiaire = 0.30; // Marge bénéficiaire de 20%
+  double _margeBeneficiaire = 0.45; // Marge bénéficiaire de 20%
   double _prixVenteMarche = 0.0;
   List<TextEditingController> _prixTotalControllers = [];
   List<TextEditingController> _prixVenteMarcheControllers = [];
@@ -187,6 +187,11 @@ class _ValiderCommandePageState extends State<ValiderCommandePage> {
       margeBeneficiaire: margeBeneficiaire,
     );
 
+      await _mettreAJourStock(
+        widget.commandId,
+        _validatedArticles,
+      );
+
     // 5. Notification succès
     _afficherNotification(context, '✅ Commande validée avec succès');
   } catch (e) {
@@ -220,7 +225,7 @@ List<Map<String, dynamic>> _calculerPrixArticles({
     return {
       ...article,
       'prixTotal': prixTotalXOF,
-      'prixVenteTotal': prixTotalXOF * 1.45,
+      'prixVenteTotal': prixTotalXOF * 1.3,
       'Pvp': pvp,
     };
   }).toList();
@@ -232,35 +237,46 @@ List<Map<String, dynamic>> _calculerPrixArticles({
 }
 
   List<String> _verifierEcartsPrix(List<Map<String, dynamic>> articles) {
-    List<String> alertes = [];
+    final List<String> alertes = [];
 
-    for (var article in widget.articles) {
-      double pvm = (article['prixVenteMarche'] as num).toDouble();
-      double pvp = (article['Pvp'] as num).toDouble();
-      double diff = (pvm - pvp).abs();
+    for (final article in articles) {
+      try {
+        // Vérification et conversion sécurisée des valeurs
+        final pvm = (article['prixVenteMarche'] as num?)?.toDouble();
+        final pvp = (article['Pvp'] as num?)?.toDouble();
+        final nomArticle = article['name']?.toString() ?? 'Article sans nom';
 
-      double tolerance = 0;
-      if (pvm < 1000) {
-        tolerance = 50;
-      } else if (pvm < 5000) {
-        tolerance = 100;
-      } else if (pvm < 8000) {
-        tolerance = 150;
-      } else if (pvm < 10000) {
-        tolerance = 200;
-      } else if (pvm < 20000) {
-        tolerance = 500;
-      }
+        // Si une des valeurs est null, on passe à l'article suivant
+        if (pvm == null || pvp == null) {
+          debugPrint('Données manquantes pour $nomArticle - PVM: $pvm, PVP: $pvp');
+          continue;
+        }
 
-      if (diff > tolerance) {
-        alertes.add(
-          "${article['name']} → PVM: ${pvm.toInt()} FCFA, PVP: ${pvp.toInt()} FCFA, "
-          "Tolérance: $tolerance FCFA, Différence: $diff FCFA\n",
-        );
+        // Calcul de la différence
+        final diff = (pvm - pvp).abs();
+        final tolerance = _calculerTolerance(pvm);
+
+        if (diff > tolerance) {
+          alertes.add(
+            "$nomArticle → PVM: ${pvm.toInt()} FCFA, PVP: ${pvp.toInt()} FCFA, "
+                "Tolérance: ${tolerance.toInt()} FCFA, Différence: ${diff.toStringAsFixed(2)} FCFA\n",
+          );
+        }
+      } catch (e) {
+        debugPrint('Erreur lors de la vérification des écarts: $e');
       }
     }
 
     return alertes;
+  }
+
+  double _calculerTolerance(double pvm) {
+    if (pvm < 1000) return 50;
+    if (pvm < 5000) return 100;
+    if (pvm < 8000) return 150;
+    if (pvm < 10000) return 200;
+    if (pvm < 20000) return 500;
+    return 1000; // Valeur par défaut pour les prix élevés
   }
 
   Future<void> _mettreAJourCommande({
@@ -302,7 +318,7 @@ List<Map<String, dynamic>> _calculerPrixArticles({
   }
 }
 
-  Future<void> mettreAJourStock(
+  Future<void> _mettreAJourStock(
       String commandId, List<dynamic> articles) async {
     try {
       CollectionReference stockRef =
@@ -310,13 +326,12 @@ List<Map<String, dynamic>> _calculerPrixArticles({
 
       for (var article in articles) {
         // Vérification et assignation sécurisée des valeurs avec des valeurs par défaut si null
-        String articleId = (article['id'] ?? '')
-            .toString(); // S'assurer que c'est une String non vide
+        String articleId = (article['id'] ?? '').toString(); // S'assurer que c'est une String non vide
         String name = (article['name'] ?? 'Article inconnu').toString();
         int pvp = (article['Pvp'] ?? 0) as int;
         int quantiteAjoutee = (article['quantity'] ?? 0) as int;
-        double prixRevient = (article['prixRevientUnitaire'] ?? 0.0).toDouble();
-        double prixVente = (article['prixVenteUnitaire'] ?? 0.0).toDouble();
+        int prixRevient = (article['prixRevientUnitaire'] ?? 0)as int;
+        int prixVente = (article['prixVenteUnitaire'] ?? 0) as int;
 
         if (articleId.isEmpty) {
           print("L'article ne contient pas d'ID valide. Ignoré.");
@@ -343,7 +358,7 @@ List<Map<String, dynamic>> _calculerPrixArticles({
         } else {
           // Ajouter un nouvel article dans le stock
           await stockRef.doc(articleId).set({
-            'name': name,
+            'nom': name,
             'quantiteDisponible': quantiteAjoutee,
             'prixRevientUnitaire': prixRevient,
             'prixVenteUnitaire': prixVente,
@@ -362,6 +377,7 @@ List<Map<String, dynamic>> _calculerPrixArticles({
     }
   }
 
+// Afficher une notification
 void _afficherNotification(BuildContext context, String message) {
   ScaffoldMessenger.of(context).showSnackBar(
     SnackBar(content: Text(message)),

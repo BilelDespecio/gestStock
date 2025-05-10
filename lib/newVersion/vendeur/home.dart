@@ -41,7 +41,7 @@ class _HomePageVendeurState extends State<HomePageVendeur> {
           await FirebaseFirestore.instance.collection('stock').get();
 
       Map<String, dynamic> stockMap = {
-        for (var stock in stockSnapshot.docs) stock['name']: stock.data()
+        for (var stock in stockSnapshot.docs) stock['nom']: stock.data()
       };
 
       List<Map<String, dynamic>> products = produitSnapshot.docs.map((prodDoc) {
@@ -123,6 +123,7 @@ class _HomePageVendeurState extends State<HomePageVendeur> {
         centerTitle: true,
         actions: [
           IconButton(onPressed: (){Navigator.pushReplacementNamed(context, '/homePageCaisier');}, icon: Icon(Icons.paid_outlined)),
+          IconButton(onPressed: (){Navigator.pushReplacement(context, '/contacts' as Route<Object?>);}, icon: Icon(Icons.contact_phone_outlined)),
           IconButton(
             icon: const Icon(Icons.refresh),
             onPressed: () {
