@@ -1,0 +1,2 @@
+/home/billdespeco/Documents/projetAndro/gestStock/android/app/.cxx/RelWithDebInfo/d4md6y1v/x86_64/CMakeFiles/edit_cache.dir
+/home/billdespeco/Documents/projetAndro/gestStock/android/app/.cxx/RelWithDebInfo/d4md6y1v/x86_64/CMakeFiles/rebuild_cache.dir

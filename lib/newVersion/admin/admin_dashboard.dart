@@ -50,8 +50,7 @@ class _HomePageAdminState extends State<HomePageAdmin> {
 
         var stockData = stockMap[produitNom];
         int quantiteDisponible = stockData?['quantiteDisponible'] ?? 0;
-        double prixVente = stockData?['prixVenteUnitaire']?.toDouble() ?? 0.0;
-        double pvp = stockData?['pvp']?.toDouble() ?? 0.0;
+        double prixVente = stockData?['pvp']?.toDouble() ?? 0.0;
 
         return {
           'id': prodDoc.id,
@@ -64,10 +63,11 @@ class _HomePageAdminState extends State<HomePageAdmin> {
           'seuil_alerte': produitData['seuil_alerte'] ?? 0,
           'code_barre': produitData['code_barre'] ?? '',
           'type': produitData['type'] ?? '',
-          'poids': produitData['poids'] ?? '',
+          'poids': produitData['poids'] ?? 0,
           'description': produitData['description'] ?? '',
-          'prixDecide': produitData['prixDecide'] ?? 0.0,
-          'pvp': pvp,
+          'prixDecide': produitData['prixDecide'] ?? null,
+          'poidsProduit': produitData['quantite'] ?? null,
+          'unite': produitData['unite'] ?? '',
         };
       }).toList();
 
@@ -230,12 +230,14 @@ class _HomePageAdminState extends State<HomePageAdmin> {
                         final int seuilCritique = produit['seuil_critique'];
                         final int seuilAlerte = produit['seuil_alerte'];
                         // Vérifier si prixDecide est null ou non défini
-                        final double? prixDecide = produit['prixDecide'] != null
-                            ? (produit['prixDecide'] as num).toDouble()
+                        final int? prixDecide = produit['prixDecide'] != null
+                            ? (produit['prixDecide'])
                             : null;
 
-                        final double pvp =
-                            (produit['pvp'] as num?)?.toDouble() ?? 0.0;
+
+                        final String? newPoids = produit['poidsProduit'] != null
+                            ? ('${produit['poidsProduit'].toInt()} ${produit['unite']}')
+                            : null;
 
                         // Déterminer le message et la couleur du ruban
                         String? rubanText;
@@ -339,7 +341,8 @@ class _HomePageAdminState extends State<HomePageAdmin> {
                                           padding: const EdgeInsets.fromLTRB(
                                               5, 0, 5, 0),
                                           child: Text(
-                                            produit['poids'] ?? 'poids',
+                                            newPoids?.toString() ??
+                                                produit['poids'],
                                             style: const TextStyle(
                                               fontSize: 10,
                                             ),
@@ -352,7 +355,7 @@ class _HomePageAdminState extends State<HomePageAdmin> {
                                       padding: const EdgeInsets.symmetric(
                                           horizontal: 5.0),
                                       child: Text(
-                                        'Prix: ${prixDecide ?? pvp} FCFA', // Affiche prixDecide si dispo, sinon pvp
+                                        'Prix: ${prixDecide?.toInt() ?? prix.toInt()} FCFA', // Affiche prixDecide si dispo, sinon pvp
                                         style: const TextStyle(
                                             fontSize: 12, color: Colors.green),
                                       ),
@@ -388,7 +391,7 @@ class _HomePageAdminState extends State<HomePageAdmin> {
                                         color: Colors.white,
                                         fontSize: 12,
                                         fontWeight: FontWeight.bold,
-                                      ),
+                                      ), //ligne 387
                                     ),
                                   ),
                                 ),

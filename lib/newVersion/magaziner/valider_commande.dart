@@ -29,35 +29,41 @@ class _ValiderCommandePageState extends State<ValiderCommandePage> {
   bool isLoading = false; // Indicateur de chargement
 
   @override
-  void initState() {
-    super.initState();
-    for (var article in widget.articles) {
-      _validatedArticles.add({
-        'id': article['id'],
-        'name': article['name'],
-        'prixTotal': article['prixTotal'],
-        'poids': article['poids'],
-        'quantity': article['quantity'],
-        'gamme': article['gamme'],
-        'prixRevientUnitaire': 0.0,
-        'prixVenteUnitaire': 0.0,
-        'type': article['type'],
-        'prixVenteMarche': _prixVenteMarche,
-        'prixTotalAchat': article['prixTotal'],
-        'prixVenteTotal': 0.0,
-        'Pvp': 0.0,
-      });
+ @override
+void initState() {
+  super.initState();
+  
+  // Initialiser avec les valeurs existantes ou des valeurs par défaut réalistes
+  _prixVenteMarche = 0.0;
 
-      // Initialiser les contrôleurs avec les valeurs existantes
-      _prixTotalControllers
-          .add(TextEditingController(text: article['prixTotal'].toString()));
-      _prixVenteMarcheControllers
-          .add(TextEditingController(text: _prixVenteMarche.toString()));
-      _quantiteControllers
-          .add(TextEditingController(text: article['quantity'].toString()));
-    }
+  for (var article in widget.articles) {
+    // Calcul des prix unitaires initiaux
+    double prixTotal = (article['prixTotal'] ?? 0).toDouble();
+    double quantite = (article['quantity'] ?? 1).toDouble();
+    
+    _validatedArticles.add({
+      'id': article['id']?.toString() ?? '',
+      'name': article['name']?.toString() ?? 'Article inconnu',
+      'prixTotal': prixTotal,
+      'poids': (article['poids'] ?? 0).toString(),
+      'quantity': quantite,
+      'gamme': article['gamme']?.toString(),
+      'type': article['type']?.toString(),
+      // Calcul des valeurs initiales
+      'prixRevientUnitaire': prixTotal / quantite,
+      'prixVenteUnitaire': (prixTotal * 1.3) / quantite,
+      'prixVenteMarche': _prixVenteMarche,
+      'prixTotalAchat': prixTotal,
+      'prixVenteTotal': prixTotal * 1.3,
+      'Pvp': _calculerPVP(prixTotal: prixTotal, quantity: quantite),
+    });
+
+    // Initialisation des contrôleurs
+    _prixTotalControllers.add(TextEditingController(text: prixTotal.toStringAsFixed(2)));
+    _prixVenteMarcheControllers.add(TextEditingController(text: _prixVenteMarche.toStringAsFixed(2)));
+    _quantiteControllers.add(TextEditingController(text: quantite.toStringAsFixed(0)));
   }
-
+}
   /*
   void _validerCommande() async {
     setState(() {
@@ -155,7 +161,7 @@ class _ValiderCommandePageState extends State<ValiderCommandePage> {
     });
   }
   */
-
+/*
   Future<void> _validerCommande({
   required String commandId,
   required List<Map<String, dynamic>> articles,
@@ -187,16 +193,80 @@ class _ValiderCommandePageState extends State<ValiderCommandePage> {
       margeBeneficiaire: margeBeneficiaire,
     );
 
-      await _mettreAJourStock(
-        widget.commandId,
-        _validatedArticles,
-      );
+    await _mettreAJourStock(
+      widget.commandId,
+      _validatedArticles,
+    );
 
     // 5. Notification succès
     _afficherNotification(context, '✅ Commande validée avec succès');
+    
   } catch (e) {
     _afficherNotification(context, '❌ Erreur: ${e.toString()}');
     rethrow;
+  }
+}
+*/
+
+Future<void> _validerCommande({required String commandId, required List<Map<String, dynamic>> articles, required double fraisAnnexes, required double margeBeneficiaire, required BuildContext context}) async {
+  setState(() => isLoading = true);
+  
+  try {
+    // 1. Récupération du taux de conversion
+    final taux = await _getTauxConversionNGNtoXOF();
+
+    // 2. Calcul des nouveaux prix pour chaque article
+    for (int i = 0; i < _validatedArticles.length; i++) {
+      double prixTotalNGN = double.tryParse(_prixTotalControllers[i].text) ?? 0.0;
+      double prixTotalXOF = prixTotalNGN * taux;
+      double quantite = double.tryParse(_quantiteControllers[i].text) ?? 1.0;
+      
+      // Calcul des prix unitaires
+      double prixRevientUnitaire = prixTotalXOF / quantite;
+      double prixVenteUnitaire = (prixTotalXOF * 1.45) / quantite;
+      
+      // Mise à jour de l'article
+      _validatedArticles[i] = {
+        ..._validatedArticles[i],
+        'prixTotal': prixTotalXOF,
+        'prixRevientUnitaire': prixRevientUnitaire,
+        'prixVenteUnitaire': prixVenteUnitaire,
+        'Pvp': _calculerPVP(prixTotal: prixTotalXOF, quantity: quantite),
+        'prixVenteMarche': double.tryParse(_prixVenteMarcheControllers[i].text) ?? 0.0,
+      };
+    }
+
+    // 3. Vérification des écarts
+    final alertes = _verifierEcartsPrix(_validatedArticles);
+    if (alertes.isNotEmpty) await _envoyerAlertesEmail(alertes);
+
+    // 4. Mise à jour du stock
+    await _mettreAJourStock(widget.commandId, _validatedArticles);
+    
+    // 5. Mise à jour de la commande
+    await FirebaseFirestore.instance
+        .collection('commandes')
+        .doc(widget.commandId)
+        .update({
+          'statut': 'validée',
+          'articles': _validatedArticles,
+          'fraisAnnexes': _fraisAnnexes,
+          'margeBeneficiaire': _margeBeneficiaire,
+          'dateValidation': FieldValue.serverTimestamp(),
+          'totalArticles': _validatedArticles.fold<int>(0, (sum, article) => sum + (article['quantity'] as num).toInt()),
+        });
+
+    
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text('✅ Commande validée avec succès!')),
+    );
+  } catch (e) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text('❌ Erreur: ${e.toString()}')),
+    );
+    rethrow;
+  } finally {
+    setState(() => isLoading = false);
   }
 }
 
@@ -232,7 +302,7 @@ List<Map<String, dynamic>> _calculerPrixArticles({
 }
 
   double _calculerPVP({required double prixTotal, required double quantity}) {
-  double pvpBase = (prixTotal * 1.3) / quantity;
+  double pvpBase = (prixTotal * 1.45) / quantity;
   return (pvpBase % 25 == 0) ? pvpBase : (pvpBase / 25).ceil() * 25;
 }
 
@@ -317,7 +387,7 @@ List<Map<String, dynamic>> _calculerPrixArticles({
     print('❌ Erreur lors de l\'envoi de l\'email: $e');
   }
 }
-
+/*
   Future<void> _mettreAJourStock(
       String commandId, List<dynamic> articles) async {
     try {
@@ -328,10 +398,10 @@ List<Map<String, dynamic>> _calculerPrixArticles({
         // Vérification et assignation sécurisée des valeurs avec des valeurs par défaut si null
         String articleId = (article['id'] ?? '').toString(); // S'assurer que c'est une String non vide
         String name = (article['name'] ?? 'Article inconnu').toString();
-        int pvp = (article['Pvp'] ?? 0) as int;
-        int quantiteAjoutee = (article['quantity'] ?? 0) as int;
-        int prixRevient = (article['prixRevientUnitaire'] ?? 0)as int;
-        int prixVente = (article['prixVenteUnitaire'] ?? 0) as int;
+        int pvp = (article['Pvp'] ?? 0).toInt();
+        int quantiteAjoutee = (article['quantity'] ?? 0).toInt();
+        int prixRevient = (article['prixRevientUnitaire'] ?? 0).toInt();
+        int prixVente = (article['prixVenteUnitaire'] ?? 0).toInt();
 
         if (articleId.isEmpty) {
           print("L'article ne contient pas d'ID valide. Ignoré.");
@@ -376,7 +446,43 @@ List<Map<String, dynamic>> _calculerPrixArticles({
       print("Erreur lors de la mise à jour du stock: $e");
     }
   }
+*/
 
+Future<void> _mettreAJourStock(String commandId, List<dynamic> articles) async {
+  try {
+    final stockRef = FirebaseFirestore.instance.collection('stock');
+
+    for (var article in articles) {
+      // Validation des données
+      final articleId = (article['id']?.toString() ?? '').trim();
+      if (articleId.isEmpty) {
+        debugPrint("ID d'article vide - ignoré");
+        continue;
+      }
+
+      // Conversion sécurisée des valeurs
+      final data = {
+        'nom': (article['name'] ?? 'Article inconnu').toString(),
+        'quantiteDisponible': FieldValue.increment((article['quantity'] ?? 0).toInt()),
+        'prixRevientUnitaire': (article['prixRevientUnitaire'] ?? 0).toDouble(),
+        'prixVenteUnitaire': (article['prixVenteUnitaire'] ?? 0).toDouble(),
+        'pvp': (article['Pvp'] ?? 0).toDouble(),
+        'prixVenteMarche': (article['prixVenteMarche'] ?? 0).toDouble(),
+        'derniereMiseAJour': FieldValue.serverTimestamp(),
+      };
+
+      // Mise à jour ou création
+      await stockRef.doc(articleId).set(data, SetOptions(merge: true));
+
+      debugPrint("Stock mis à jour pour l'article: ${data['nom']}");
+    }
+
+    debugPrint("Mise à jour du stock terminée pour la commande $commandId");
+  } catch (e, stack) {
+    debugPrint("Erreur mise à jour stock: $e\n$stack");
+    rethrow;
+  }
+}
 // Afficher une notification
 void _afficherNotification(BuildContext context, String message) {
   ScaffoldMessenger.of(context).showSnackBar(

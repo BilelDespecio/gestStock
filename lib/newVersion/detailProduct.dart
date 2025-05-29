@@ -5,8 +5,8 @@ import 'package:gest_stock/newVersion/zoomImage.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 
 class DetailProduitPage extends StatefulWidget {
-    final Map<String, dynamic> produit;
-    
+  final Map<String, dynamic> produit;
+
   const DetailProduitPage({Key? key, required this.produit}) : super(key: key);
 
   @override
@@ -14,38 +14,41 @@ class DetailProduitPage extends StatefulWidget {
 }
 
 class _DetailProduitPageState extends State<DetailProduitPage> {
-
- bool _isAuthorized = false;
-    late String idProduit;
-    late String imageUrl;
-    late String nomProduit;
-    late double prix;
-    late int quantite;
-    late int seuilCritique;
-    late int seuilAlerte;
-    late String description;
-    late String type;
-    late String poids;
-    late String gamme;
-
-    late String stockStatus;
-    late Color stockColor;
+  bool _isAuthorized = false;
+  late String idProduit;
+  late String imageUrl;
+  late String nomProduit;
+  late dynamic prix;
+  late int quantite;
+  late int seuilCritique;
+  late int seuilAlerte;
+  late String description;
+  late String type;
+  late dynamic poids;
+  late String gamme;
+  late String unite;
+  late String stockStatus;
+  late Color stockColor;
 
   @override
   void initState() {
     super.initState();
     idProduit = widget.produit['id'] ?? '';
-    imageUrl = widget.produit['image'] ?? '';
+    imageUrl = widget.produit['imageUrl'] ?? widget.produit['image'] ?? '';
     nomProduit = widget.produit['nom'] ?? 'Nom inconnu';
-    prix = widget.produit['prixVente']?.toDouble() ?? 0;
-    quantite = widget.produit['quantiteDisponible'] ?? 0;
+    prix =widget.produit['prixDecide'] ?? widget.produit['prixVente']?.toDouble() ?? 0;
+    quantite =
+        widget.produit['quantiteDisponible'] ?? widget.produit['quantite'] ?? 0;
     seuilCritique = widget.produit['seuil_critique'] ?? 0;
     seuilAlerte = widget.produit['seuil_alerte'] ?? 0;
-    description = widget.produit['description'] ?? "Aucune description disponible.";
+    description =
+        widget.produit['description'] ?? "Aucune description disponible.";
     type = widget.produit['type'] ?? "Type inconnu";
-    poids = widget.produit['poids'] ?? ' Poids inconnu';
+    poids = widget.produit['poidsProduit'] ?? widget.produit['poids'] ?? 0;
     gamme = widget.produit['gamme'] ?? 'Gamme inconnue';
+    unite = widget.produit['unite'] ?? 'unite';
 
+    // Gestion du statut du stock
     stockStatus = "En stock";
     stockColor = Colors.green;
     if (quantite <= seuilCritique) {
@@ -55,45 +58,46 @@ class _DetailProduitPageState extends State<DetailProduitPage> {
       stockStatus = "Stock Alerte";
       stockColor = Colors.orange;
     }
-
     _checkUserRole();
   }
-  
-    void _confirmerSuppression(BuildContext context, String produitId) {
-      showDialog(
-        context: context,
-        builder: (BuildContext context) {
-          return AlertDialog(
-            title: Text("Confirmation"),
-            actions: [
-              TextButton(
-                onPressed: () {
-                  Navigator.of(context).pop(); // Fermer la boîte de dialogue
-                },
-                child: Text("Annuler"),
-              ),
-              TextButton(
-                onPressed: () async {
+
+  void _confirmerSuppression(BuildContext context, String produitId) {
+    showDialog(
+      context: context,
+      builder: (BuildContext context) {
+        return AlertDialog(
+          title: const Text("Confirmation"),
+          content: const Text("Voulez-vous vraiment supprimer ce produit ?"),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(context).pop(),
+              child: const Text("Annuler"),
+            ),
+            TextButton(
+              onPressed: () async {
+                try {
                   await FirebaseFirestore.instance
                       .collection('produits')
                       .doc(produitId)
                       .delete();
+                  Navigator.of(context).pop(); // Fermer la boîte de dialogue
+                  Navigator.of(context).pop(); // Revenir à la page précédente
+                } catch (e) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(
+                        content: Text("Erreur lors de la suppression: $e")),
+                  );
+                }
+              },
+              child:
+                  const Text("Supprimer", style: TextStyle(color: Colors.red)),
+            ),
+          ],
+        );
+      },
+    );
+  }
 
-                  // Fermer la boîte de dialogue
-                  Navigator.of(context).pop();
-
-                  // Fermer la page actuelle pour revenir à la liste des produits
-                  Navigator.of(context).pop();
-                },
-                child: Text("Supprimer", style: TextStyle(color: Colors.red)),
-              ),
-            ],
-          );
-        },
-      );
-    }
-
-     // Vérifie le rôle de l'utilisateur
   Future<void> _checkUserRole() async {
     User? user = FirebaseAuth.instance.currentUser;
     if (user == null) return;
@@ -105,14 +109,10 @@ class _DetailProduitPageState extends State<DetailProduitPage> {
           .get();
 
       if (userDoc.exists) {
-        String role = userDoc['role'] ?? ''; // Récupérer le rôle
-
-        // Vérifier si l'utilisateur est admin ou user
-        if (role == "admin" || role == "user") {
-          setState(() {
-            _isAuthorized = true;
-          });
-        }
+        String role = userDoc['role'] ?? '';
+        setState(() {
+          _isAuthorized = role == "admin" || role == "user";
+        });
       }
     } catch (e) {
       print("Erreur lors de la récupération du rôle : $e");
@@ -121,11 +121,9 @@ class _DetailProduitPageState extends State<DetailProduitPage> {
 
   @override
   Widget build(BuildContext context) {
-        final String nomProduit = widget.produit['nom'] ?? 'Nom inconnu';
-     return Scaffold(
+    return Scaffold(
       appBar: AppBar(
         title: Text(nomProduit),
-        //backgroundColor: Colors.blue.shade800, // Bleu foncé pour un aspect pro
         centerTitle: true,
         elevation: 4,
         actions: _isAuthorized
@@ -144,9 +142,7 @@ class _DetailProduitPageState extends State<DetailProduitPage> {
                 ),
                 IconButton(
                   icon: const Icon(Icons.delete, color: Colors.red),
-                  onPressed: () {
-                    _confirmerSuppression(context, idProduit);
-                  },
+                  onPressed: () => _confirmerSuppression(context, idProduit),
                 ),
               ]
             : [],
@@ -162,13 +158,13 @@ class _DetailProduitPageState extends State<DetailProduitPage> {
                   Navigator.push(
                     context,
                     MaterialPageRoute(
-                      builder: (context) => ImageZoomPage(
-                          imageUrl: imageUrl, tag: widget.produit['nom']),
+                      builder: (context) =>
+                          ImageZoomPage(imageUrl: imageUrl, tag: nomProduit),
                     ),
                   );
                 },
                 child: Hero(
-                  tag: widget.produit['nom'], // Animation fluide
+                  tag: nomProduit,
                   child: Image.network(
                     imageUrl,
                     width: double.infinity,
@@ -176,7 +172,7 @@ class _DetailProduitPageState extends State<DetailProduitPage> {
                     fit: BoxFit.cover,
                     loadingBuilder: (context, child, loadingProgress) {
                       if (loadingProgress == null) return child;
-                      return Center(child: CircularProgressIndicator());
+                      return const Center(child: CircularProgressIndicator());
                     },
                     errorBuilder: (context, error, stackTrace) =>
                         const Icon(Icons.image_not_supported, size: 200),
@@ -190,6 +186,7 @@ class _DetailProduitPageState extends State<DetailProduitPage> {
                 color: Colors.grey[300],
                 child: const Icon(Icons.image, size: 100, color: Colors.grey),
               ),
+
             // Détails du produit
             Padding(
               padding: const EdgeInsets.all(16.0),
@@ -230,14 +227,15 @@ class _DetailProduitPageState extends State<DetailProduitPage> {
                       ),
                     ],
                   ),
-                  SizedBox(
-                    height: 5,
-                  ),
+                  const SizedBox(height: 8),
                   Row(
                     children: [
-                      Text(" $type ", style: const TextStyle(fontSize: 16)),
+                      Text(" $type", style: const TextStyle(fontSize: 16)),
                       const SizedBox(width: 10),
-                      Text(" $poids ", style: const TextStyle(fontSize: 16))
+                      if (poids != null && poids != 0)
+                        Text(
+                            " ${poids is double ? poids.toInt() : poids}${unite.isNotEmpty ? ' $unite' : ''}",
+                            style: const TextStyle(fontSize: 16)),
                     ],
                   ),
                   const SizedBox(height: 16),
@@ -257,7 +255,6 @@ class _DetailProduitPageState extends State<DetailProduitPage> {
                     width: double.infinity,
                     child: ElevatedButton.icon(
                       onPressed: () {
-                        // Action à définir (ex: ajouter au panier)
                         ScaffoldMessenger.of(context).showSnackBar(
                           const SnackBar(
                               content: Text(
@@ -280,6 +277,5 @@ class _DetailProduitPageState extends State<DetailProduitPage> {
         ),
       ),
     );
-  
   }
 }

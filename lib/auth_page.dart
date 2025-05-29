@@ -5,7 +5,7 @@ import 'package:flutter/services.dart';
 import 'package:flutter_downloader/flutter_downloader.dart';
 import 'package:open_file/open_file.dart';
 import 'package:permission_handler/permission_handler.dart';
-import 'package:supabase_flutter/supabase_flutter.dart'; 
+import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:flutter/services.dart';
 import 'package:package_info_plus/package_info_plus.dart';
 
@@ -20,7 +20,7 @@ class _AuthPageState extends State<AuthPage> {
   final TextEditingController _emailController = TextEditingController();
   final TextEditingController _passwordController = TextEditingController();
   final SupabaseClient supabase = Supabase.instance.client;
-
+  bool _obscurePassword = true;
   String _errorMessage = '';
 
   Future<void> _authenticate() async {
@@ -150,13 +150,13 @@ class _AuthPageState extends State<AuthPage> {
     }
   }
 
-Future<void> requestPermissions() async {
-  if (await Permission.storage.request().isGranted) {
-    print("Permission accordée");
-  } else {
-    print("Permission refusée");
+  Future<void> requestPermissions() async {
+    if (await Permission.storage.request().isGranted) {
+      print("Permission accordée");
+    } else {
+      print("Permission refusée");
+    }
   }
-}
 
   /// Télécharge et installe l'APK
   Future<void> _downloadAndInstallApk(String apkUrl) async {
@@ -248,14 +248,28 @@ Future<void> requestPermissions() async {
                 SizedBox(height: 16),
 
                 // Champ Mot de passe
+
                 TextField(
                   controller: _passwordController,
-                  obscureText: true,
+                  obscureText: _obscurePassword,
                   decoration: InputDecoration(
                     labelText: 'Mot de passe',
                     prefixIcon: Icon(Icons.lock, color: Colors.blue.shade800),
                     border: OutlineInputBorder(
                       borderRadius: BorderRadius.circular(12),
+                    ),
+                    suffixIcon: IconButton(
+                      icon: Icon(
+                        _obscurePassword
+                            ? Icons.visibility
+                            : Icons.visibility_off,
+                        color: Colors.grey,
+                      ),
+                      onPressed: () {
+                        setState(() {
+                          _obscurePassword = !_obscurePassword;
+                        });
+                      },
                     ),
                   ),
                 ),
@@ -306,9 +320,6 @@ Future<void> requestPermissions() async {
     );
   }
 }
-
-
-
 
 @pragma('vm:entry-point') // 🔥 Obligatoire pour le callback
 void downloadCallback(String id, int status, int progress) {

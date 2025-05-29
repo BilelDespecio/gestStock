@@ -1,6 +1,8 @@
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:mobile_scanner/mobile_scanner.dart';
+import 'package:intl/intl.dart'; // Ajoutez cette ligne
 
 class VentePage extends StatefulWidget {
   @override
@@ -16,26 +18,38 @@ class _VentePageState extends State<VentePage> {
   Future<String> _genererIdVente() async {
     QuerySnapshot ventesValidees = await FirebaseFirestore.instance
         .collection('ventes')
-        .where('statut', whereIn: ['validé', 'en attente'])
-        .get();
+        .where('statut', whereIn: ['validé', 'en attente']).get();
     int numeroVente = ventesValidees.docs.length + 1;
     String date = DateTime.now().toIso8601String().split('T')[0];
     return 'VET$numeroVente-$date';
   }
 
   void _ajouterArticle(Map<String, dynamic> article, int quantite) {
-    setState(() {
-      double prixTotal =
-          (article['prixVenteUnitaire'] as num).toDouble() * quantite;
-      _articlesSelectionnes.add({
-        'id': article['id'],
-        'nom': article['name'],
-        'quantite': quantite,
-        'prixUnitaire': (article['prixVenteUnitaire'] as num).toDouble(),
-        'prixTotal': prixTotal,
+    try {
+      // Conversion sécurisée avec gestion de null
+      double prixUnitaire =
+          (article['prixVenteUnitaire'] ?? article['pvp'] ?? 0.0).toDouble();
+
+      setState(() {
+        double prixTotal = prixUnitaire * quantite;
+        _articlesSelectionnes.add({
+          'id': article['id']?.toString() ?? '',
+          'nom': article['nom']?.toString() ?? 'Article inconnu',
+          'quantite': quantite,
+          'prixUnitaire': prixUnitaire,
+          'prixTotal': prixTotal,
+          // Conserver la référence du prix utilisé
+          'prixReference':
+              article.containsKey('prixDecide') ? 'prixDecide' : 'pvp',
+        });
+        _calculerMontantTotal();
       });
-      _calculerMontantTotal();
-    });
+    } catch (e) {
+      print("Erreur lors de l'ajout d'article: $e");
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Erreur lors de l\'ajout du produit')),
+      );
+    }
   }
 
   void _supprimerArticle(int index) {
@@ -50,7 +64,6 @@ class _VentePageState extends State<VentePage> {
         0.0, (sum, item) => sum + (item['prixTotal'] as num).toDouble());
   }
 
-  // Validation finale de la vente
   void _soumettreVente() async {
     if (_articlesSelectionnes.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
@@ -59,21 +72,37 @@ class _VentePageState extends State<VentePage> {
       return;
     }
 
+    User? user = FirebaseAuth.instance.currentUser;
+    if (user == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Vous devez être connecté')),
+      );
+      return;
+    }
+
     String venteId = await _genererIdVente();
 
     try {
+      // Récupérer les infos complètes du vendeur
+      DocumentSnapshot vendeurDoc = await FirebaseFirestore.instance
+          .collection('users')
+          .doc(user.uid)
+          .get();
+
       await FirebaseFirestore.instance.collection('ventes').doc(venteId).set({
         'id': venteId,
         'articles': _articlesSelectionnes,
         'montantTotal': _montantTotal,
-        'statut': 'en attente', // ou 'validé' une fois validée
+        'statut': 'en attente',
         'date': Timestamp.now(),
+        'vendeurId': user.uid,
+        'vendeurNom':
+            vendeurDoc['name'] ?? user.displayName ?? 'Vendeur inconnu',
+        'vendeurEmail': user.email,
       });
 
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-            content: Text(
-                'Vente enregistrée avec succès en attente de validation !')),
+        SnackBar(content: Text('Vente enregistrée avec succès !')),
       );
 
       setState(() {
@@ -82,70 +111,76 @@ class _VentePageState extends State<VentePage> {
       });
     } catch (e) {
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Erreur lors de l\'enregistrement de la vente')),
+        SnackBar(
+            content: Text('Erreur lors de l\'enregistrement: ${e.toString()}')),
       );
-      print("Erreur: $e");
     }
   }
 
- /* Future<void> _scannerCodeBarres() async {
-    try {
-      var scanResult = await BarcodeScanner.scan();
-      String barcode = scanResult.rawContent;
+  // Scanner un code-barres
+  void _scannerCodeBarres() async {
+    final currentContext = context;
 
-      if (barcode.isNotEmpty) {
-        QuerySnapshot result = await FirebaseFirestore.instance
-            .collection('stock')
-            .where('code_barre', isEqualTo: barcode)
-            .get();
-
-        if (result.docs.isNotEmpty) {
-          Map<String, dynamic> produit =
-              result.docs.first.data() as Map<String, dynamic>;
-          _demanderQuantite(produit);
-        } else {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(content: Text('Produit non trouvé')),
-          );
-        }
-      }
-    } catch (e) {
-      print("Erreur scan: $e");
-    }
-  } */
-
-
- void _scannerCodeBarres() {
     showDialog(
-      context: context,
+      context: currentContext,
       builder: (context) => AlertDialog(
-        title: Text("Scanner un Code-Barres"),
+        title: const Text("Scanner un Code-Barres"),
         content: SizedBox(
           height: 300,
           child: MobileScanner(
             onDetect: (barcode) async {
               if (barcode.barcodes.isNotEmpty && barcode.barcodes.first.rawValue != null) {
                 String scannedCode = barcode.barcodes.first.rawValue!;
-                print("Code-barres détecté : $scannedCode");
+                Navigator.of(context).pop(); // Fermer le scanner
 
-                // Rechercher le produit dans Firestore
-                QuerySnapshot result = await FirebaseFirestore.instance
-                    .collection('stockBoutique')
-                    .where('code_barre', isEqualTo: scannedCode)
-                    .get();
+                try {
+                  // 1. D'abord chercher dans produits par code-barre
+                  QuerySnapshot produitsResult = await FirebaseFirestore.instance
+                      .collection('produits')
+                      .where('code_barre', isEqualTo: scannedCode)
+                      .get();
 
-                if (result.docs.isNotEmpty) {
-                  Map<String, dynamic> produit =
-                      result.docs.first.data() as Map<String, dynamic>;
+                  if (produitsResult.docs.isNotEmpty) {
+                    String nomProduit = produitsResult.docs.first['nom'];
 
-                  _demanderQuantite(produit);
-                } else {
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    SnackBar(content: Text('Produit non trouvé')),
-                  );
+                    // 2. Puis chercher dans stockBoutique par nom
+                    QuerySnapshot stockResult = await FirebaseFirestore.instance
+                        .collection('stockBoutique')
+                        .where('nom', isEqualTo: nomProduit)
+                        .get();
+
+                    if (stockResult.docs.isNotEmpty) {
+                      Map<String, dynamic> produitStock =
+                      stockResult.docs.first.data() as Map<String, dynamic>;
+
+                      if (currentContext.mounted) {
+                        _showQuantiteDialog(
+                          produitStock,
+                          (produitStock['pvp'] ?? 0.0).toDouble(),
+                          (produitStock['quantiteDisponible'] ?? 0).toInt(),
+                        );
+                      }
+                    } else {
+                      if (currentContext.mounted) {
+                        ScaffoldMessenger.of(currentContext).showSnackBar(
+                          SnackBar(content: Text('Produit non trouvé en stock')),
+                        );
+                      }
+                    }
+                  } else {
+                    if (currentContext.mounted) {
+                      ScaffoldMessenger.of(currentContext).showSnackBar(
+                        SnackBar(content: Text('Code-barre non reconnu')),
+                      );
+                    }
+                  }
+                } catch (e) {
+                  if (currentContext.mounted) {
+                    ScaffoldMessenger.of(currentContext).showSnackBar(
+                      SnackBar(content: Text('Erreur: ${e.toString()}')),
+                    );
+                  }
                 }
-
-                Navigator.pop(context); // Ferme le scanner après détection
               }
             },
           ),
@@ -192,139 +227,215 @@ class _VentePageState extends State<VentePage> {
     );
   }
 
-// Fonction pour suspendre une vente après avoir demandé le nom du client
-  void _suspendreVente() async {
-    if (_articlesSelectionnes.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Ajoutez des articles avant de suspendre!')),
-      );
-      return;
-    }
-
-    // Afficher un showDialog pour demander le nom du client
-    String? clientName = await _demanderNomClient();
-    if (clientName == null || clientName.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Nom du client requis pour suspendre la vente!')),
-      );
-      return;
-    }
-
-    // Utiliser le nom du client comme ID du document
-    String venteId = clientName.trim().toLowerCase().replaceAll(' ', '_');
-
-    try {
-      await FirebaseFirestore.instance.collection('ventes').doc(venteId).set({
-        'id': venteId,
-        'client': clientName,
-        'articles': _articlesSelectionnes,
-        'montantTotal': _montantTotal,
-        'statut': 'suspendue',
-        'date': Timestamp.now(),
-      });
-
-      // Réinitialiser la vente actuelle
-      setState(() {
-        _articlesSelectionnes.clear();
-        _montantTotal = 0.0;
-      });
-
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Vente suspendue pour $clientName!')),
-      );
-    } catch (e) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Erreur lors de la suspension de la vente')),
-      );
-      print("Erreur: $e");
-    }
+ // Fonction pour suspendre une vente
+void _suspendreVente() async {
+  // Vérification des articles
+  if (_articlesSelectionnes.isEmpty) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(content: Text('Ajoutez des articles avant de suspendre!')),
+    );
+    return;
   }
 
-// Fonction pour afficher un showDialog et demander le nom du client
-  Future<String?> _demanderNomClient() async {
-    TextEditingController _controller = TextEditingController();
+  // Vérification de l'authentification
+  final user = FirebaseAuth.instance.currentUser;
+  if (user == null) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(content: Text('Authentification requise')),
+    );
+    return;
+  }
 
-    return showDialog<String>(
+  // Demande du nom du client
+  final clientName = await _demanderNomClient();
+  if (clientName == null || clientName.isEmpty) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(content: Text('Nom du client requis')),
+    );
+    return;
+  }
+
+  try {
+    // Génération d'un ID unique pour la vente
+    final venteId = '${DateTime.now().millisecondsSinceEpoch}_${user.uid}';
+    
+    // Enregistrement dans Firestore
+    await FirebaseFirestore.instance.collection('ventes').doc(venteId).set({
+      'id': venteId,
+      'client': clientName.trim(),
+      'articles': _articlesSelectionnes,
+      'vendeurId': user.uid,
+      'vendeurNom': user.displayName ?? 'Vendeur',
+      'montantTotal': _montantTotal,
+      'statut': 'suspendue',
+      'date': Timestamp.now(),
+      'createdAt': FieldValue.serverTimestamp(),
+    });
+
+    // Réinitialisation de la vente
+    _reinitialiserVenteActuelle();
+
+    // Confirmation à l'utilisateur
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text('Vente suspendue pour $clientName'),
+        duration: const Duration(seconds: 2),
+      ),
+    );
+
+  } catch (e, stackTrace) {
+    debugPrint('Erreur suspension vente: $e\n$stackTrace');
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: const Text('Erreur lors de la suspension'),
+        duration: const Duration(seconds: 2),
+        action: SnackBarAction(
+          label: 'Réessayer',
+          onPressed: _suspendreVente,
+        ),
+      ),
+    );
+  }
+}
+
+// Fonction helper pour demander le nom du client
+Future<String?> _demanderNomClient() async {
+  final controller = TextEditingController();
+  return showDialog<String>(
+    context: context,
+    barrierDismissible: false,
+    builder: (context) => AlertDialog(
+      title: const Text('Nom du client'),
+      content: TextField(
+        controller: controller,
+        decoration: const InputDecoration(
+          hintText: 'Entrez le nom du client',
+          border: OutlineInputBorder(),
+        ),
+        autofocus: true,
+      ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.pop(context),
+          child: const Text('Annuler'),
+        ),
+        TextButton(
+          onPressed: () {
+            if (controller.text.trim().isNotEmpty) {
+              Navigator.pop(context, controller.text.trim());
+            }
+          },
+          child: const Text('Confirmer'),
+        ),
+      ],
+    ),
+  );
+}
+
+// Fonction helper pour réinitialiser la vente
+void _reinitialiserVenteActuelle() {
+  setState(() {
+    _articlesSelectionnes.clear();
+    _montantTotal = 0.0;
+  });
+}
+
+  // Affiche la liste des ventes suspendues du vendeur connecté
+void _afficherVentesSuspendues() async {
+  final user = FirebaseAuth.instance.currentUser;
+  if (user == null) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(content: Text('Vous devez être connecté')),
+    );
+    return;
+  }
+
+  try {
+    QuerySnapshot querySnapshot = await FirebaseFirestore.instance
+        .collection('ventes')
+        .where('statut', isEqualTo: 'suspendue')
+        .where('vendeurId', isEqualTo: user.uid) // Filtre par vendeur
+        .orderBy('date', descending: true)
+        .get();
+
+    if (querySnapshot.docs.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Aucune vente suspendue')),
+      );
+      return;
+    }
+
+    showDialog(
       context: context,
       builder: (context) {
         return AlertDialog(
-          title: Text('Nom du client'),
-          content: TextField(
-            controller: _controller,
-            decoration: InputDecoration(hintText: "Entrez le nom du client"),
+          title: const Text('Mes Ventes Suspendues'),
+          content: SizedBox(
+            width: double.maxFinite,
+            child: ListView.builder(
+              shrinkWrap: true,
+              itemCount: querySnapshot.docs.length,
+              itemBuilder: (context, index) {
+                final doc = querySnapshot.docs[index];
+                final data = doc.data() as Map<String, dynamic>;
+                final date = (data['date'] as Timestamp).toDate();
+                final dateFormat = DateFormat('dd/MM/yyyy HH:mm').format(date);
+                
+                return Card(
+                  margin: const EdgeInsets.symmetric(vertical: 4),
+                  child: ListTile(
+                    title: Text('Vente ${data['id']}'),
+                    subtitle: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text('${data['montantTotal']} FCFA'),
+                        Text('Client: ${data['client'] ?? 'Non spécifié'}'),
+                        Text('Date: $dateFormat'),
+                      ],
+                    ),
+                    trailing: IconButton(
+                      icon: const Icon(Icons.replay, color: Colors.blue),
+                      onPressed: () {
+                        _reprendreVente(doc);
+                        Navigator.pop(context);
+                      },
+                    ),
+                  ),
+                );
+              },
+            ),
           ),
           actions: [
             TextButton(
-              onPressed: () => Navigator.pop(context, null),
-              child: Text('Annuler'),
-            ),
-            TextButton(
-              onPressed: () {
-                Navigator.pop(context, _controller.text);
-              },
-              child: Text('OK'),
+              onPressed: () => Navigator.pop(context),
+              child: const Text('Fermer'),
             ),
           ],
         );
       },
     );
+  } catch (e) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text('Erreur: ${e.toString()}')),
+    );
+    debugPrint('Erreur ventes suspendues: $e');
   }
-
-// Affiche la liste des ventes suspendues et permet d'en reprendre une
-  void _afficherVentesSuspendues() async {
-    try {
-      QuerySnapshot querySnapshot = await FirebaseFirestore.instance
-          .collection('ventes')
-          .where('statut', isEqualTo: 'suspendue')
-          .orderBy('date', descending: true)
-          .get();
-
-      if (querySnapshot.docs.isEmpty) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Aucune vente suspendue')),
-        );
-        return;
-      }
-
-      showDialog(
-        context: context,
-        builder: (context) {
-          return SimpleDialog(
-            title: Text('Ventes Suspendues'),
-            children: querySnapshot.docs.map((doc) {
-              final data = doc.data() as Map<String, dynamic>;
-              DateTime date = (data['date'] as Timestamp).toDate();
-              String dateFormat = "${date.day}/${date.month}/${date.year} ${date.hour}:${date.minute}";
-              return SimpleDialogOption(
-                onPressed: () {
-                  _reprendreVente(doc);
-                  Navigator.pop(context);
-                },
-                child: Text('Vente ${data['id']} - ${data['montantTotal']} FCFA\n(Date: $dateFormat)'),
-              );
-            }).toList(),
-          );
-        },
-      );
-    } catch (e) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Erreur lors du chargement des ventes suspendues')),
-      );
-      print("Erreur: $e");
-    }
-  }
+}
 
 // Reprend une vente suspendue en chargeant ses articles et montant total
-  void _reprendreVente(DocumentSnapshot vente) async {
+void _reprendreVente(DocumentSnapshot vente) async {
     try {
       setState(() {
         _articlesSelectionnes =
-        List<Map<String, dynamic>>.from(vente['articles']);
+            List<Map<String, dynamic>>.from(vente['articles']);
         _montantTotal = (vente['montantTotal'] as num).toDouble();
       });
 
       // Suppression de la vente suspendue après reprise
-      await FirebaseFirestore.instance.collection('ventes').doc(vente.id).delete();
+      await FirebaseFirestore.instance
+          .collection('ventes')
+          .doc(vente.id)
+          .delete();
 
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text('Vente reprise avec succès.')),
@@ -337,17 +448,12 @@ class _VentePageState extends State<VentePage> {
     }
   }
 
-
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
         title: Text('Nouvelle Vente'),
         actions: [
-          IconButton(
-            icon: Icon(Icons.camera_alt),
-            onPressed: _scannerCodeBarres,
-          ),
           IconButton(
             icon: Icon(Icons.restore),
             onPressed: _afficherVentesSuspendues,
@@ -362,27 +468,48 @@ class _VentePageState extends State<VentePage> {
         child: Column(
           children: [
             // Recherche de produits
-            Padding(
-              padding: EdgeInsets.symmetric(vertical: 8.0),
-              child: TextField(
-                decoration: InputDecoration(
-                  labelText: 'Rechercher un produit',
-                  prefixIcon: Icon(Icons.search),
-                  filled: true,
-                  fillColor: Colors.grey[200],
-                  border: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(12),
-                    borderSide: BorderSide.none,
+            Row(
+              children: [
+                Expanded(
+                  child: Container(
+                    decoration: BoxDecoration(
+                      color: Colors.grey.shade200, // Fond gris clair
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    child: TextField(
+                      decoration: InputDecoration(
+                        hintText: 'Rechercher un produit...',
+                        hintStyle: TextStyle(color: Colors.grey.shade600),
+                        border: InputBorder.none,
+                        prefixIcon:
+                            Icon(Icons.search, color: Colors.blueAccent),
+                        contentPadding:
+                            EdgeInsets.symmetric(vertical: 14, horizontal: 10),
+                      ),
+                      onChanged: (value) {
+                        setState(() {
+                          _searchQuery = value.toLowerCase();
+                        });
+                      },
+                    ),
                   ),
                 ),
-                onChanged: (value) {
-                  setState(() {
-                    _searchQuery = value.toLowerCase();
-                  });
-                },
-              ),
+                Container(
+                  decoration: BoxDecoration(
+                    color: Colors.blueAccent, // Couleur du bouton QR
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: IconButton(
+                    icon: Icon(Icons.qr_code_scanner,
+                        color: Colors.white, size: 28),
+                    onPressed: _scannerCodeBarres,
+                    tooltip: "Scanner un QR Code",
+                  ),
+                ),
+              ],
             ),
 
+/*
             Expanded(
               child: StreamBuilder<QuerySnapshot>(
                 stream: FirebaseFirestore.instance.collection('stock').snapshots(),
@@ -392,7 +519,7 @@ class _VentePageState extends State<VentePage> {
 
                   final stock = snapshot.data!.docs.where((doc) {
                     final produit = doc.data() as Map<String, dynamic>;
-                    return produit['name']
+                    return produit['nom']
                         .toLowerCase()
                         .contains(_searchQuery);
                   }).toList();
@@ -405,10 +532,10 @@ class _VentePageState extends State<VentePage> {
                       return Card(
                         margin: EdgeInsets.symmetric(vertical: 4),
                         child: ListTile(
-                          title: Text(produit['name'],
+                          title: Text('${produit['gamme']} ${produit['nom']} ',
                               style: TextStyle(fontWeight: FontWeight.bold)),
                           subtitle: Text(
-                              'Prix: ${produit['prixVenteUnitaire']} FCFA'),
+                              'Prix: ${produit['pvp']} FCFA'),
                           trailing: ElevatedButton.icon(
                             onPressed: () {
                               showDialog(
@@ -421,7 +548,7 @@ class _VentePageState extends State<VentePage> {
                                       mainAxisSize: MainAxisSize.min,
                                       children: [
                                         Text(
-                                            'Prix: ${produit['prixVenteUnitaire']} FCFA'),
+                                            'Prix: ${produit['pvp']} FCFA'),
                                         Text(
                                             'Stock disponible: ${produit['quantiteDisponible']}'),
                                         TextField(
@@ -473,7 +600,92 @@ class _VentePageState extends State<VentePage> {
                 },
               ),
             ),
+*/
 
+            Expanded(
+              child: StreamBuilder<QuerySnapshot>(
+                stream: FirebaseFirestore.instance
+                    .collection('stockBoutique')
+                    .snapshots(),
+                builder: (context, snapshot) {
+                  if (!snapshot.hasData) {
+                    return Center(child: CircularProgressIndicator());
+                  }
+
+                  final stock = snapshot.data!.docs.where((doc) {
+                    final produit = doc.data() as Map<String, dynamic>;
+                    final nomProduit = produit['nom']?.toString() ?? '';
+                    final gammeProduit = produit['gamme']?.toString() ??
+                        ''; // Supposons que le champ s'appelle 'gamme'
+
+                    final searchLower = _searchQuery.toLowerCase();
+
+                    return nomProduit.toLowerCase().contains(searchLower) ||
+                        gammeProduit.toLowerCase().contains(searchLower);
+                  }).toList();
+
+                  return ListView.builder(
+                    itemCount: stock.length,
+                    itemBuilder: (context, index) {
+                      final produitStock =
+                          stock[index].data() as Map<String, dynamic>;
+                      final productId = stock[index].id;
+
+                      return FutureBuilder<DocumentSnapshot>(
+                        future: FirebaseFirestore.instance
+                            .collection('produits')
+                            .doc(productId)
+                            .get(),
+                        builder: (context, produitSnapshot) {
+                          if (produitSnapshot.connectionState ==
+                              ConnectionState.waiting) {
+                            return ListTile(
+                              title: Text('Chargement...'),
+                              leading: CircularProgressIndicator(),
+                            );
+                          }
+
+                          // Gestion sécurisée du prix
+                          final prixStock =
+                              (produitStock['pvp'] ?? 0.0).toDouble();
+                          final prixDecide =
+                              produitSnapshot.data?.exists == true
+                                  ? (produitSnapshot.data!
+                                          as Map<String, dynamic>)['prixDecide']
+                                      ?.toDouble()
+                                  : null;
+
+                          // Détermine le prix à utiliser (prixDecide prioritaire s'il existe)
+                          final prixAAfficher = prixDecide ?? prixStock;
+                          final prixPourCalcul = prixDecide ?? prixStock;
+
+                          return Card(
+                            margin: EdgeInsets.symmetric(vertical: 4),
+                            child: ListTile(
+                              title: Text(
+                                '${produitStock['gamme'] ?? ''} ${produitStock['nom'] ?? ''}',
+                                style: TextStyle(fontWeight: FontWeight.bold),
+                              ),
+                              subtitle: Text(
+                                  'Prix: ${prixAAfficher.toStringAsFixed(2)} FCFA'),
+                              trailing: ElevatedButton.icon(
+                                onPressed: () => _showQuantiteDialog(
+                                    produitStock,
+                                    prixPourCalcul,
+                                    (produitStock['quantiteDisponible'] ?? 0)
+                                        .toInt()),
+                                icon: Icon(Icons.add_shopping_cart),
+                                label: Text('Ajouter'),
+                              ),
+                            ),
+                          );
+                        },
+                      );
+                    },
+                  );
+                },
+              ),
+            ),
             Divider(),
 
             // Résumé de la vente
@@ -495,8 +707,18 @@ class _VentePageState extends State<VentePage> {
                       child: ListTile(
                         title:
                             Text('${article['nom']} x${article['quantite']}'),
-                        subtitle: Text(
-                            'Prix total: ${article['prixTotal']} FCFA'),
+                        subtitle: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                                'Prix total: ${article['prixTotal'].toStringAsFixed(2)} FCFA'),
+                            Text(
+                              '(${article['prixReference'] == 'prixDecide' ? 'Prix spécial' : 'Prix standard'})',
+                              style:
+                                  TextStyle(fontSize: 12, color: Colors.grey),
+                            ),
+                          ],
+                        ),
                         trailing: IconButton(
                           icon: Icon(Icons.delete, color: Colors.red),
                           onPressed: () => _supprimerArticle(index),
@@ -541,6 +763,67 @@ class _VentePageState extends State<VentePage> {
             ],
           ],
         ),
+      ),
+    );
+  }
+
+  void _showQuantiteDialog(Map<String, dynamic> produit, double prixPourCalcul,
+      int stockDisponible) {
+    int quantite = 1;
+    final prixAAfficher = prixPourCalcul.toStringAsFixed(2);
+
+    showDialog(
+      context: context,
+      builder: (context) => StatefulBuilder(
+        builder: (context, setState) {
+          return AlertDialog(
+            title: Text('Sélectionner la quantité'),
+            content: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text('Prix: $prixAAfficher FCFA'),
+                Text('Stock disponible: $stockDisponible'),
+                TextField(
+                  keyboardType: TextInputType.number,
+                  decoration: InputDecoration(labelText: 'Quantité'),
+                  onChanged: (value) {
+                    setState(() {
+                      quantite = int.tryParse(value) ?? 1;
+                    });
+                  },
+                ),
+              ],
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(context),
+                child: Text('Annuler'),
+              ),
+              TextButton(
+                onPressed: () {
+                  if (quantite > stockDisponible) {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      SnackBar(
+                        content: Text(
+                            'Stock insuffisant! Disponible: $stockDisponible'),
+                      ),
+                    );
+                  } else {
+                    // On crée une copie du produit avec le bon prix
+                    final produitAvecPrix = {
+                      ...produit,
+                      'pvp': prixPourCalcul,
+                      'prixVenteUnitaire': prixPourCalcul,
+                    };
+                    _ajouterArticle(produitAvecPrix, quantite);
+                    Navigator.pop(context);
+                  }
+                },
+                child: Text('Ajouter'),
+              ),
+            ],
+          );
+        },
       ),
     );
   }

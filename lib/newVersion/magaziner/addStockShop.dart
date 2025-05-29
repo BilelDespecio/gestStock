@@ -8,6 +8,234 @@ class ChargerBoutiquePage extends StatefulWidget {
 
 class _ChargerBoutiquePageState extends State<ChargerBoutiquePage> {
   final TextEditingController _searchController = TextEditingController();
+  String _searchQuery = '';
+  bool _isLoading = false;
+  List<Map<String, dynamic>> _products = [];
+  Map<String, TextEditingController> _quantityControllers = {};
+
+  @override
+  void initState() {
+    super.initState();
+    _fetchProducts();
+  }
+
+  @override
+  void dispose() {
+    _searchController.dispose();
+    _quantityControllers.forEach((key, controller) => controller.dispose());
+    super.dispose();
+  }
+
+  Future<void> _fetchProducts() async {
+    setState(() => _isLoading = true);
+    try {
+      QuerySnapshot snapshot =
+          await FirebaseFirestore.instance.collection('stock').get();
+
+      setState(() {
+        _products = snapshot.docs.map((doc) {
+          final data = doc.data() as Map<String, dynamic>;
+          final productId = doc.id;
+
+          // Initialiser un contrôleur de quantité pour chaque produit
+          _quantityControllers[productId] = TextEditingController(text: '0');
+
+          return {
+            'id': productId,
+            'nom': data['nom'] ?? data['name'] ?? 'Sans nom',
+            'gamme': data['gamme'] ?? '',
+            'type': data['type'] ?? '',
+            'poids': data['poids'] ?? '',
+            'quantiteDisponible':
+                data['quantiteDisponible'] ?? data['quantite'] ?? 0,
+            'pvp': data['pvp'] ?? 0,
+            // Ajoutez tous les autres champs nécessaires
+          };
+        }).toList();
+      });
+    } catch (e) {
+      debugPrint('Erreur chargement produits: $e');
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Erreur lors du chargement des produits')),
+      );
+    } finally {
+      setState(() => _isLoading = false);
+    }
+  }
+
+  Future<void> _chargerBoutique() async {
+    setState(() => _isLoading = true);
+    try {
+      final batch = FirebaseFirestore.instance.batch();
+      final stockBoutiqueRef =
+          FirebaseFirestore.instance.collection('stockBoutique');
+
+      for (var product in _products) {
+        final productId = product['id'];
+        final quantite =
+            int.tryParse(_quantityControllers[productId]!.text) ?? 0;
+
+        if (quantite > 0) {
+          // Vérifier le stock disponible
+          if (quantite > product['quantiteDisponible']) {
+            throw Exception('Stock insuffisant pour ${product['nom']}');
+          }
+
+          // Copie complète du produit avec la nouvelle quantité
+          final productCopy = Map<String, dynamic>.from(product);
+          productCopy['quantite'] = quantite;
+          productCopy['dateAjout'] = FieldValue.serverTimestamp();
+          productCopy['quantiteDisponible'] = quantite; // Pour la boutique
+
+          print(productId);
+          // Ajouter à la boutique
+          batch.set(stockBoutiqueRef.doc(productId), productCopy);
+
+          // Mettre à jour le stock principal
+          final stockRef =
+              FirebaseFirestore.instance.collection('stock').doc(productId);
+          batch.update(stockRef,
+              {'quantiteDisponible': FieldValue.increment(-quantite)});
+        }
+      }
+
+      await batch.commit();
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Boutique chargée avec succès!')),
+      );
+
+      // Réinitialiser les quantités
+      _quantityControllers.forEach((key, controller) => controller.text = '0');
+    } catch (e) {
+      debugPrint('Erreur chargement boutique: $e');
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Erreur: ${e.toString()}')),
+      );
+    } finally {
+      setState(() => _isLoading = false);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(
+        title: const Text('Charger Boutique'),
+        actions: [
+          IconButton(
+            icon: Icon(Icons.refresh),
+            onPressed: _fetchProducts,
+          ),
+        ],
+      ),
+      body: _isLoading && _products.isEmpty
+          ? Center(child: CircularProgressIndicator())
+          : Column(
+              children: [
+                Padding(
+                  padding: const EdgeInsets.all(16),
+                  child: TextField(
+                    controller: _searchController,
+                    decoration: InputDecoration(
+                      labelText: 'Rechercher un produit',
+                      prefixIcon: Icon(Icons.search),
+                      border: OutlineInputBorder(),
+                    ),
+                    onChanged: (value) =>
+                        setState(() => _searchQuery = value.toLowerCase()),
+                  ),
+                ),
+                Expanded(
+                  child: ListView.builder(
+                    itemCount: _products.length,
+                    itemBuilder: (context, index) {
+                      final product = _products[index];
+                      final productName =
+                          product['nom'].toString().toLowerCase();
+
+                      if (!productName.contains(_searchQuery)) {
+                        return SizedBox.shrink();
+                      }
+
+                      return Card(
+                        margin:
+                            EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                        child: Padding(
+                          padding: const EdgeInsets.all(12),
+                          child: Row(
+                            children: [
+                              /*CircleAvatar(
+                                radius: 30,
+                                backgroundImage: product['imageUrl'] != null && 
+                                    product['imageUrl'].isNotEmpty
+                                    ? NetworkImage(product['imageUrl'])
+                                    : AssetImage('assets/images/logo.png') as ImageProvider,
+                              ),*/
+                              SizedBox(width: 16),
+                              Expanded(
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Text(
+                                      product['gamme'],
+                                      style: TextStyle(
+                                          fontWeight: FontWeight.bold),
+                                    ),
+                                    Text(product['nom']),
+                                    Text(
+                                        'Dispo: ${product['quantiteDisponible']}, ${product['poids']}'),
+                                  ],
+                                ),
+                              ),
+                              SizedBox(
+                                width: 80,
+                                child: TextField(
+                                  controller:
+                                      _quantityControllers[product['id']],
+                                  keyboardType: TextInputType.number,
+                                  decoration: InputDecoration(
+                                    labelText: 'Qté',
+                                    border: OutlineInputBorder(),
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      );
+                    },
+                  ),
+                ),
+                Padding(
+                  padding: const EdgeInsets.all(16),
+                  child: ElevatedButton.icon(
+                    onPressed: _isLoading ? null : _chargerBoutique,
+                    icon: _isLoading
+                        ? CircularProgressIndicator(color: Colors.white)
+                        : Icon(Icons.shopping_cart),
+                    label: Text('Charger la boutique'),
+                    style: ElevatedButton.styleFrom(
+                      minimumSize: Size(double.infinity, 50),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+    );
+  }
+}
+/*
+import 'package:flutter/material.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
+
+class ChargerBoutiquePage extends StatefulWidget {
+  @override
+  _ChargerBoutiquePageState createState() => _ChargerBoutiquePageState();
+}
+
+class _ChargerBoutiquePageState extends State<ChargerBoutiquePage> {
+  final TextEditingController _searchController = TextEditingController();
   final TextEditingController _quantityController = TextEditingController();
   String _searchQuery = '';
   Map<String, dynamic>? _selectedProduct;
@@ -262,4 +490,4 @@ class _ChargerBoutiquePageState extends State<ChargerBoutiquePage> {
       ),
     );
   }
-}
+}*/

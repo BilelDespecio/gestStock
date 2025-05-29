@@ -28,6 +28,7 @@ class _AjouterProduitPageState extends State<AjouterProduitPage> {
   final TextEditingController marketPriceController = TextEditingController();
   final TextEditingController descriptionController = TextEditingController();
   final TextEditingController prixDecideController = TextEditingController();
+  String? _selectedUnite = 'pcs';// Pour stocker l'unité sélectionnée
 
   final List<String> typesDeProduits = [
     'Savon',
@@ -45,12 +46,6 @@ class _AjouterProduitPageState extends State<AjouterProduitPage> {
     'Gel de Douche',
     'Déodorant',
     'Grattoir',
-  ];
-
-  final List<Map<String, String>> etatsProduits = [
-    {'label': 'Poids', 'value': 'g'},
-    {'label': 'Volume', 'value': 'ml'},
-    {'label': 'Nombre', 'value': 'pcs'}
   ];
 
   String? _selectedType;
@@ -76,7 +71,7 @@ class _AjouterProduitPageState extends State<AjouterProduitPage> {
         .get();
     if (doc.exists) {
       var data = doc.data();
-      setState(() {
+      setState(() { //ligne 74
         nomController.text = data?['nom'] ?? '';
         prixController.text = data?['prixVente'].toString() ?? '';
         quantiteController.text = data?['quantiteDisponible'].toString() ?? '';
@@ -84,11 +79,14 @@ class _AjouterProduitPageState extends State<AjouterProduitPage> {
         seuilAlerteController.text = data?['seuil_alerte'].toString() ?? '';
         codeBarreController.text = data?['code_barre'] ?? '';
         gammeController.text = data?['gamme'] ?? '';
-        poidsController.text = data?['poids'] ?? '';
+        poidsController.text = data?['poids']?.toString() ?? ''; 
         marketPriceController.text = data?['marketPrice'].toString() ?? '';
         descriptionController.text = data?['description'] ?? '';
         _selectedType = data?['type'];
         _image = data?['imageUrl']; // Stocke l'URL existante de l'image
+        quantiteController.text = (data?['quantite'] as double?)?.toString() ?? '0'; //ligne 87
+        _selectedUnite = data?['unite']?.toString() ?? 'pcs'; 
+        prixDecideController.text = data?['prixDecide'].toString() ?? '';
       });
     }
   }
@@ -211,13 +209,11 @@ class _AjouterProduitPageState extends State<AjouterProduitPage> {
       final supabase = Supabase.instance.client;
       final String fileName =
           "produits/${DateTime.now().millisecondsSinceEpoch}.webp"; // Enregistre en WebP
-
       final response = await supabase.storage
           .from("images") // Remplace "images" par le nom de ton bucket Supabase
           .upload(fileName, image);
 
       if (response.isEmpty) throw Exception("Échec du téléversement");
-
       final String publicUrl =
           supabase.storage.from("images").getPublicUrl(fileName);
       return publicUrl;
@@ -232,15 +228,15 @@ class _AjouterProduitPageState extends State<AjouterProduitPage> {
     String gamme = gammeController.text;
     String produitNom = nomController.text;
     double prixVente = double.tryParse(prixController.text) ?? 0;
-    int quantiteDisponible = int.tryParse(quantiteController.text) ?? 0;
     int seuilCritique = int.tryParse(seuilCritiqueController.text) ?? 0;
     int seuilAlerte = int.tryParse(seuilAlerteController.text) ?? 0;
     String codeBarre = codeBarreController.text;
-    String poids = '${poidsController.text} ${_selectedEtat!}';
+    int poids = int.tryParse(poidsController.text) ?? 0;
     double marketPrice = double.tryParse(marketPriceController.text) ?? 0;
     String description = descriptionController.text;
     int prixDecide = int.tryParse(prixDecideController.text) ?? 0;
-
+    double quantite = double.tryParse(quantiteController.text) ?? 0;
+    String unite = _selectedUnite ?? 'pcs'; 
     String docName = gamme + '_' + produitNom;
 
     // Vérifier si une image a été sélectionnée
@@ -251,11 +247,21 @@ class _AjouterProduitPageState extends State<AjouterProduitPage> {
     }
 
     // Uploader l'image et obtenir l'URL
-    String? imageUrl = await uploadImageToSupabase(_image!);
-    if (imageUrl == null) {
-      ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Erreur lors de l\'upload de l\'image')));
-      return;
+    String? imageUrl;
+    if (_image != null) {
+      if (_image is File) {
+        // Cas où c'est une nouvelle image à uploader
+        imageUrl =
+            await uploadImageToSupabase(_image as File); // ligne 254 modifiée
+        if (imageUrl == null) {
+          ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(content: Text('Erreur lors de l\'upload de l\'image')));
+          return;
+        }
+      } else if (_image is String) {
+        // Cas où c'est déjà une URL existante
+        imageUrl = _image as String;
+      }
     }
 
     Map<String, dynamic> produitData = {
@@ -263,7 +269,6 @@ class _AjouterProduitPageState extends State<AjouterProduitPage> {
       'nom': produitNom,
       'type': _selectedType,
       'prixVente': prixVente,
-      'quantiteDisponible': quantiteDisponible,
       'seuil_critique': seuilCritique,
       'seuil_alerte': seuilAlerte,
       'code_barre': codeBarre,
@@ -272,6 +277,9 @@ class _AjouterProduitPageState extends State<AjouterProduitPage> {
       'marketPrice': marketPrice,
       'description': description,
       'prixDecide': prixDecide,
+      // Nouveaux champs
+      'quantite': quantite,
+      'unite': unite,
     };
 
     if (widget.produitId == null) {
@@ -287,6 +295,34 @@ class _AjouterProduitPageState extends State<AjouterProduitPage> {
           .doc(widget.produitId)
           .update(produitData);
     }
+
+    // Fonction interne pour rechercher et mettre à jour le champ 'pvp' dans une collection
+    // Fonction pour rechercher et mettre à jour le champ 'pvp' tout en conservant l'ancien prix
+    Future<void> updatePvpInCollection(String collectionName) async {
+      final querySnapshot = await FirebaseFirestore.instance
+          .collection(collectionName)
+          .where('nom', isEqualTo: produitNom)
+          .get();
+
+      for (var doc in querySnapshot.docs) {
+        final currentData = doc.data();
+        final ancienPvp = currentData['pvp'];
+
+        await doc.reference.update({
+          'oldPvp': ancienPvp, // Sauvegarder l'ancien pvp
+          'pvp': prixDecide, // Mettre à jour le nouveau pvp
+          'lastUpdated': FieldValue
+              .serverTimestamp(), // Optionnel : trace de la date de mise à jour
+        });
+
+        print(
+            'Mise à jour de $collectionName : ancien pvp = $ancienPvp, nouveau pvp = $prixDecide');
+      }
+    }
+
+    // 🔁 Mise à jour dans les deux collections : stock et stockBoutique
+    await updatePvpInCollection('stock');
+    await updatePvpInCollection('stockBoutique');
 
     showDialog(
       context: context,
@@ -433,30 +469,38 @@ class _AjouterProduitPageState extends State<AjouterProduitPage> {
                   controller: prixController,
                   decoration: InputDecoration(labelText: "Prix de vente"),
                   keyboardType: TextInputType.number),*/
-              DropdownButtonFormField<String>(
-                decoration: InputDecoration(labelText: "État du produit"),
-                value: _selectedEtat,
-                onChanged: (newValue) =>
-                    setState(() => _selectedEtat = newValue),
-                items: etatsProduits.map((etat) {
-                  return DropdownMenuItem<String>(
-                    value: etat['value'], // Valeur enregistrée
-                    child: Text(etat['label']!), // Texte affiché
-                  );
-                }).toList(),
-              ),
-              TextField(
-                controller: poidsController,
-                decoration: InputDecoration(
-                  labelText: _selectedEtat == "ml"
-                      ? "Volume (ml)"
-                      : _selectedEtat == "pcs"
-                          ? "Nombre (pcs)"
-                          : "Poids (g)",
-                  border:
-                      OutlineInputBorder(), // Ajoute une bordure pour un meilleur design
-                ),
-                keyboardType: TextInputType.number,
+              Row(
+                children: [
+                  Expanded(
+                    flex: 2,
+                    child: TextField(
+                      controller: quantiteController,
+                      decoration: InputDecoration(
+                        labelText: "Quantité",
+                        border: OutlineInputBorder(),
+                      ),
+                      keyboardType: TextInputType.number,
+                    ),
+                  ),
+                  SizedBox(width: 10),
+                  Expanded(
+                    flex: 1,
+                    child: DropdownButtonFormField<String>(
+                      decoration: InputDecoration(
+                        labelText: "Unité",
+                        border: OutlineInputBorder(),
+                      ),
+                      value: _selectedUnite,
+                      onChanged: (newValue) =>
+                          setState(() => _selectedUnite = newValue),
+                      items: const [
+                        DropdownMenuItem(value: 'g', child: Text('g')),
+                        DropdownMenuItem(value: 'ml', child: Text('ml')),
+                        DropdownMenuItem(value: 'pcs', child: Text('pcs')),
+                      ],
+                    ),
+                  ),
+                ],
               ),
               TextField(
                 controller: descriptionController,
@@ -479,7 +523,8 @@ class _AjouterProduitPageState extends State<AjouterProduitPage> {
               if (widget.produitId != null)
                 TextField(
                   controller: prixDecideController,
-                  decoration: InputDecoration(labelText: "Prix Décidé(en FCFA)"),
+                  decoration:
+                      InputDecoration(labelText: "Prix Décidé(en FCFA)"),
                   keyboardType: TextInputType.number,
                 ),
               Row(
@@ -504,13 +549,11 @@ class _AjouterProduitPageState extends State<AjouterProduitPage> {
               Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
-                  
-                  ElevatedButton(onPressed: pickImage, child: Column(
-                    children: [
-                      Icon(Icons.image),
-                      Text("Image")
-                    ],
-                  )),
+                  ElevatedButton(
+                      onPressed: pickImage,
+                      child: Column(
+                        children: [Icon(Icons.image), Text("Image")],
+                      )),
                   if (_image != null)
                     Padding(
                       padding: const EdgeInsets.symmetric(vertical: 10),

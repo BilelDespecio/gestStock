@@ -1,6 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:gest_stock/newVersion/caisier/homeCaisier.dart';
+import 'package:gest_stock/newVersion/contact/contact_list_page.dart';
 import 'package:gest_stock/newVersion/detailProduct.dart';
+import 'package:gest_stock/newVersion/vendeur/historique.dart';
 import 'package:mobile_scanner/mobile_scanner.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 
@@ -44,26 +47,40 @@ class _HomePageVendeurState extends State<HomePageVendeur> {
         for (var stock in stockSnapshot.docs) stock['nom']: stock.data()
       };
 
+      final stockBoutiqueSnapshot =
+          await FirebaseFirestore.instance.collection('stockBoutique').get();
+
+      Map<String, dynamic> stockBoutiqueMap = {
+        for (var stock in stockBoutiqueSnapshot.docs) stock['nom']: stock.data()
+      };
+
       List<Map<String, dynamic>> products = produitSnapshot.docs.map((prodDoc) {
         var produitData = prodDoc.data();
         String produitNom = produitData['nom'];
 
         var stockData = stockMap[produitNom];
-        int quantiteDisponible = stockData?['quantiteDisponible'] ?? 0;
-        double prixVente = stockData?['prixVenteUnitaire']?.toDouble() ?? 0.0;
+        //int quantiteDisponible = stockData?['quantiteDisponible'] ?? 0;
+        double prixVente = stockData?['pvp']?.toDouble() ?? 0.0;
+
+        var stockBoutiqueData = stockBoutiqueMap[produitNom];
+        int quantiteBoutique = stockBoutiqueData?['quantite'] ?? 0;
 
         return {
+          'id': prodDoc.id,
           'gamme': produitData['gamme'],
           'nom': produitNom,
           'prixVente': prixVente,
-          'quantiteDisponible': quantiteDisponible,
+          'quantiteDisponible': quantiteBoutique,
           'image': produitData['imageUrl'] ?? '',
           'seuil_critique': produitData['seuil_critique'] ?? 0,
           'seuil_alerte': produitData['seuil_alerte'] ?? 0,
           'code_barre': produitData['code_barre'] ?? '',
           'type': produitData['type'] ?? '',
-          'poids': produitData['poids'] ?? '',
-          'description': produitData['description'] ?? ''
+          'poids': produitData['poids'] ?? 0,
+          'description': produitData['description'] ?? '',
+          'prixDecide': produitData['prixDecide'] ?? null,
+          'poidsProduit': produitData['quantite'] ?? null,
+          'unite': produitData['unite'] ?? '',
         };
       }).toList();
 
@@ -78,9 +95,9 @@ class _HomePageVendeurState extends State<HomePageVendeur> {
       } else {
         _filteredProducts = _allProducts
             .where((product) =>
-        product['nom'].toLowerCase().contains(query.toLowerCase())||
-            product['gamme'].toLowerCase().contains(query.toLowerCase())||
-            product['type'].toLowerCase().contains(query.toLowerCase()))
+                product['nom'].toLowerCase().contains(query.toLowerCase()) ||
+                product['gamme'].toLowerCase().contains(query.toLowerCase()) ||
+                product['type'].toLowerCase().contains(query.toLowerCase()))
             .toList();
       }
     });
@@ -122,8 +139,23 @@ class _HomePageVendeurState extends State<HomePageVendeur> {
         title: const Text('Tableau de bord'),
         centerTitle: true,
         actions: [
-          IconButton(onPressed: (){Navigator.pushReplacementNamed(context, '/homePageCaisier');}, icon: Icon(Icons.paid_outlined)),
-          IconButton(onPressed: (){Navigator.pushReplacement(context, '/contacts' as Route<Object?>);}, icon: Icon(Icons.contact_phone_outlined)),
+          IconButton(
+              onPressed: () {
+                Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                        builder: (context) => AccueilCaissierPage()));
+              },
+              
+              icon: Icon(Icons.paid_outlined)),
+          IconButton(
+              onPressed: () {
+                Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                        builder: (context) => ContactsListPage()));
+              },
+              icon: Icon(Icons.contact_phone_outlined)),
           IconButton(
             icon: const Icon(Icons.refresh),
             onPressed: () {
@@ -136,8 +168,8 @@ class _HomePageVendeurState extends State<HomePageVendeur> {
             },
           ),
         ],
-         backgroundColor: Colors.white, // Bleu foncé pour un aspect pro
-        
+        backgroundColor: Colors.white, // Bleu foncé pour un aspect pro
+
         elevation: 4,
       ),
       body: Padding(
@@ -150,7 +182,8 @@ class _HomePageVendeurState extends State<HomePageVendeur> {
               children: [
                 ElevatedButton.icon(
                   onPressed: () {
-                    Navigator.pushNamed(context, '/historique');
+                    Navigator.push(context, MaterialPageRoute(
+                      builder: (context) => HistoriquePage()));
                   },
                   icon: const Icon(Icons.history),
                   label: const Text('history'),
@@ -186,24 +219,26 @@ class _HomePageVendeurState extends State<HomePageVendeur> {
               children: [
                 Expanded(
                   child: Container(
-        decoration: BoxDecoration(
-          color: Colors.grey.shade200, // Fond gris clair
-          borderRadius: BorderRadius.circular(12),
-        ),
-        child: TextField(
-          controller: _searchController,
-          decoration: InputDecoration(
-            hintText: 'Rechercher un produit...',
-            hintStyle: TextStyle(color: Colors.grey.shade600),
-            border: InputBorder.none,
-            prefixIcon: Icon(Icons.search, color: Colors.blueAccent),
-            contentPadding: EdgeInsets.symmetric(vertical: 14, horizontal: 10),
-          ),
-          onChanged: _filterProducts,
-        ),
-      ),
+                    decoration: BoxDecoration(
+                      color: Colors.grey.shade200, // Fond gris clair
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    child: TextField(
+                      controller: _searchController,
+                      decoration: InputDecoration(
+                        hintText: 'Rechercher un produit...',
+                        hintStyle: TextStyle(color: Colors.grey.shade600),
+                        border: InputBorder.none,
+                        prefixIcon:
+                            Icon(Icons.search, color: Colors.blueAccent),
+                        contentPadding:
+                            EdgeInsets.symmetric(vertical: 14, horizontal: 10),
+                      ),
+                      onChanged: _filterProducts,
+                    ),
+                  ),
                 ),
-               Container(
+                Container(
                   decoration: BoxDecoration(
                     color: Colors.blueAccent, // Couleur du bouton QR
                     borderRadius: BorderRadius.circular(12),
@@ -218,7 +253,7 @@ class _HomePageVendeurState extends State<HomePageVendeur> {
               ],
             ),
             const SizedBox(height: 10),
-             Expanded(
+            Expanded(
               child: _filteredProducts.isEmpty
                   ? const Center(child: Text('Aucun produit trouvé.'))
                   : GridView.builder(
@@ -233,6 +268,7 @@ class _HomePageVendeurState extends State<HomePageVendeur> {
                       itemCount: _filteredProducts.length,
                       itemBuilder: (context, index) {
                         final produit = _filteredProducts[index];
+                        final id = produit['id'];
                         final int quantite = produit['quantiteDisponible'];
                         final double prix = produit['prixVente'];
                         final String imageUrl = produit['image'] ?? '';
@@ -240,7 +276,15 @@ class _HomePageVendeurState extends State<HomePageVendeur> {
                             'URL de l\'image : $imageUrl'); // Vérifier la valeur de l'URL
                         final int seuilCritique = produit['seuil_critique'];
                         final int seuilAlerte = produit['seuil_alerte'];
-                        
+                        // Vérifier si prixDecide est null ou non défini
+                        final int? prixDecide = produit['prixDecide'] != null
+                            ? (produit['prixDecide'])
+                            : null;
+
+
+                        final String? newPoids = produit['poidsProduit'] != null
+                            ? ('${produit['poidsProduit'].toInt()} ${produit['unite']}')
+                            : null;
 
                         // Déterminer le message et la couleur du ruban
                         String? rubanText;
@@ -293,27 +337,6 @@ class _HomePageVendeurState extends State<HomePageVendeur> {
                                                   Icons.image_not_supported,
                                                   size: 120),
                                         ),
-                                        /*Image.network(
-                                          imageUrl,
-                                          height: 100,
-                                          width: double.infinity,
-                                          fit: BoxFit.cover,
-                                          loadingBuilder: (context, child,
-                                              loadingProgress) {
-                                            if (loadingProgress == null) {
-                                              return child;
-                                            } else {
-                                              return const Center(
-                                                  child:
-                                                      CircularProgressIndicator());
-                                            }
-                                          },
-                                          errorBuilder:
-                                              (context, error, stackTrace) =>
-                                                  const Icon(
-                                                      Icons.image_not_supported,
-                                                      size: 120),
-                                        ),*/
                                       )
                                     else
                                       Container(
@@ -330,10 +353,9 @@ class _HomePageVendeurState extends State<HomePageVendeur> {
                                       child: Text(
                                         produit['gamme'] ?? 'Nom inconnu',
                                         style: const TextStyle(
-                                          fontSize: 14,
-                                          fontWeight: FontWeight.bold,
-                                          color: Colors.blue
-                                        ),
+                                            fontSize: 14,
+                                            fontWeight: FontWeight.bold,
+                                            color: Colors.blue),
                                         overflow: TextOverflow.ellipsis,
                                       ),
                                     ),
@@ -352,8 +374,8 @@ class _HomePageVendeurState extends State<HomePageVendeur> {
                                     Row(
                                       children: [
                                         Padding(
-                                          padding:
-                                              const EdgeInsets.fromLTRB(5, 0, 5, 0),
+                                          padding: const EdgeInsets.fromLTRB(
+                                              5, 0, 5, 0),
                                           child: Text(
                                             produit['type'] ?? 'Type',
                                             style: const TextStyle(
@@ -363,10 +385,11 @@ class _HomePageVendeurState extends State<HomePageVendeur> {
                                           ),
                                         ),
                                         Padding(
-                                          padding:
-                                              const EdgeInsets.fromLTRB(5, 0, 5, 0),
+                                          padding: const EdgeInsets.fromLTRB(
+                                              5, 0, 5, 0),
                                           child: Text(
-                                            produit['poids'] ?? 'poids',
+                                            newPoids?.toString() ??
+                                                produit['poids'],
                                             style: const TextStyle(
                                               fontSize: 10,
                                             ),
@@ -379,7 +402,7 @@ class _HomePageVendeurState extends State<HomePageVendeur> {
                                       padding: const EdgeInsets.symmetric(
                                           horizontal: 5.0),
                                       child: Text(
-                                        'Prix: ${prix.toInt()} FCFA',
+                                        'Prix: ${prixDecide?.toInt() ?? prix.toInt()} FCFA', // Affiche prixDecide si dispo, sinon pvp
                                         style: const TextStyle(
                                             fontSize: 12, color: Colors.green),
                                       ),
@@ -415,7 +438,7 @@ class _HomePageVendeurState extends State<HomePageVendeur> {
                                         color: Colors.white,
                                         fontSize: 12,
                                         fontWeight: FontWeight.bold,
-                                      ),
+                                      ), //ligne 387
                                     ),
                                   ),
                                 ),

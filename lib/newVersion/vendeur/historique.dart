@@ -1,3 +1,4 @@
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 
@@ -99,6 +100,9 @@ class HistoriquePage extends StatelessWidget {
 
 class VenteDetailPage extends StatelessWidget {
   final Map<String, dynamic> data;
+  User? user = FirebaseAuth.instance.currentUser;
+
+  
 
   VenteDetailPage({required this.data});
 

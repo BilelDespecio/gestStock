@@ -72,8 +72,8 @@ class _HomePageMagazinierState extends State<HomePageMagazinier> {
         int quantiteDisponible = stockData?['quantiteDisponible'] ?? 0;
         double prixVente = stockData?['pvp']?.toDouble() ?? 0.0;
 
-
         return {
+          'id': prodDoc.id,
           'gamme': produitData['gamme'],
           'nom': produitNom,
           'prixVente': prixVente,
@@ -83,9 +83,11 @@ class _HomePageMagazinierState extends State<HomePageMagazinier> {
           'seuil_alerte': produitData['seuil_alerte'] ?? 0,
           'code_barre': produitData['code_barre'] ?? '',
           'type': produitData['type'] ?? '',
-          'poids': produitData['poids'] ?? '',
+          'poids': produitData['poids'] ?? 0,
           'description': produitData['description'] ?? '',
-          'prixDecide': produitData['prixDecide'] ?? 0.0,
+          'prixDecide': produitData['prixDecide'] ?? null,
+          'poidsProduit': produitData['quantite'] ?? null,
+          'unite': produitData['unite'] ?? '',
         };
       }).toList();
 
@@ -419,6 +421,7 @@ class _HomePageMagazinierState extends State<HomePageMagazinier> {
                       itemCount: _filteredProducts.length,
                       itemBuilder: (context, index) {
                         final produit = _filteredProducts[index];
+                        final id = produit['id'];
                         final int quantite = produit['quantiteDisponible'];
                         final double prix = produit['prixVente'];
                         final String imageUrl = produit['image'] ?? '';
@@ -426,6 +429,15 @@ class _HomePageMagazinierState extends State<HomePageMagazinier> {
                             'URL de l\'image : $imageUrl'); // Vérifier la valeur de l'URL
                         final int seuilCritique = produit['seuil_critique'];
                         final int seuilAlerte = produit['seuil_alerte'];
+                        // Vérifier si prixDecide est null ou non défini
+                        final int? prixDecide = produit['prixDecide'] != null
+                            ? (produit['prixDecide'])
+                            : null;
+
+
+                        final String? newPoids = produit['poidsProduit'] != null
+                            ? ('${produit['poidsProduit'].toInt()} ${produit['unite']}')
+                            : null;
 
                         // Déterminer le message et la couleur du ruban
                         String? rubanText;
@@ -478,27 +490,6 @@ class _HomePageMagazinierState extends State<HomePageMagazinier> {
                                                   Icons.image_not_supported,
                                                   size: 120),
                                         ),
-                                        /*Image.network(
-                                          imageUrl,
-                                          height: 100,
-                                          width: double.infinity,
-                                          fit: BoxFit.cover,
-                                          loadingBuilder: (context, child,
-                                              loadingProgress) {
-                                            if (loadingProgress == null) {
-                                              return child;
-                                            } else {
-                                              return const Center(
-                                                  child:
-                                                      CircularProgressIndicator());
-                                            }
-                                          },
-                                          errorBuilder:
-                                              (context, error, stackTrace) =>
-                                                  const Icon(
-                                                      Icons.image_not_supported,
-                                                      size: 120),
-                                        ),*/
                                       )
                                     else
                                       Container(
@@ -550,7 +541,8 @@ class _HomePageMagazinierState extends State<HomePageMagazinier> {
                                           padding: const EdgeInsets.fromLTRB(
                                               5, 0, 5, 0),
                                           child: Text(
-                                            produit['poids'] ?? 'poids',
+                                            newPoids?.toString() ??
+                                                produit['poids'],
                                             style: const TextStyle(
                                               fontSize: 10,
                                             ),
@@ -563,7 +555,7 @@ class _HomePageMagazinierState extends State<HomePageMagazinier> {
                                       padding: const EdgeInsets.symmetric(
                                           horizontal: 5.0),
                                       child: Text(
-                                        'Prix: ${prix.toInt()} FCFA',
+                                        'Prix: ${prixDecide?.toInt() ?? prix.toInt()} FCFA', // Affiche prixDecide si dispo, sinon pvp
                                         style: const TextStyle(
                                             fontSize: 12, color: Colors.green),
                                       ),
@@ -599,7 +591,7 @@ class _HomePageMagazinierState extends State<HomePageMagazinier> {
                                         color: Colors.white,
                                         fontSize: 12,
                                         fontWeight: FontWeight.bold,
-                                      ),
+                                      ), //ligne 387
                                     ),
                                   ),
                                 ),

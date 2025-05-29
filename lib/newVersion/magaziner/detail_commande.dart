@@ -7,8 +7,8 @@ class DetailsCommandePage extends StatelessWidget {
   final String statut;
   final double fraisAnnexes;
   final double totalQuantite;
-  final double prixRevientTotal;
-  final double prixVenteMarche;
+  final double? prixRevientTotal;
+  final double? prixVenteMarche;
 
   DetailsCommandePage({
     required this.commandId,
@@ -38,7 +38,7 @@ class DetailsCommandePage extends StatelessWidget {
             Text('Statut: $statut'),
             Text('Frais annexes: ${fraisAnnexes.toStringAsFixed(2)} FCFA'),
             Text('Total quantité: ${totalQuantite.toStringAsFixed(2)}'),
-            Text('Prix de revient total: ${prixRevientTotal.toStringAsFixed(2)} FCFA'),
+            Text('Prix de revient total: ${prixRevientTotal!.toStringAsFixed(2) } FCFA'),
             SizedBox(height: 20),
             Text('Articles:', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
             Expanded(
