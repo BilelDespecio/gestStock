@@ -189,44 +189,6 @@ class _VentePageState extends State<VentePage> {
     );
   }
 
-  void _demanderQuantite(Map<String, dynamic> produit) {
-    showDialog(
-      context: context,
-      builder: (context) {
-        int quantite = 1;
-        return AlertDialog(
-          title: Text('Sélectionner la quantité'),
-          content: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Text('Prix: ${produit['prixVenteUnitaire']} FCFA'),
-              TextField(
-                keyboardType: TextInputType.number,
-                decoration: InputDecoration(labelText: 'Quantité'),
-                onChanged: (value) {
-                  quantite = int.tryParse(value) ?? 1;
-                },
-              ),
-            ],
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.pop(context),
-              child: Text('Annuler'),
-            ),
-            TextButton(
-              onPressed: () {
-                _ajouterArticle(produit, quantite);
-                Navigator.pop(context);
-              },
-              child: Text('Ajouter'),
-            ),
-          ],
-        );
-      },
-    );
-  }
-
  // Fonction pour suspendre une vente
 void _suspendreVente() async {
   // Vérification des articles
@@ -781,6 +743,7 @@ void _reprendreVente(DocumentSnapshot vente) async {
             content: Column(
               mainAxisSize: MainAxisSize.min,
               children: [
+                Text('${produit['gamme']} ${produit['nom']}'),
                 Text('Prix: $prixAAfficher FCFA'),
                 Text('Stock disponible: $stockDisponible'),
                 TextField(
