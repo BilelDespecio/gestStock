@@ -153,8 +153,11 @@ class _ChargerBoutiquePageState extends State<ChargerBoutiquePage> {
                       final product = _products[index];
                       final productName =
                           product['nom'].toString().toLowerCase();
+                      final gamme = product['gamme'].toString().toLowerCase();
+                      final query = _searchQuery.toLowerCase();
 
-                      if (!productName.contains(_searchQuery)) {
+                      if (!productName.contains(query) ||
+                          !gamme.contains(query)) {
                         return SizedBox.shrink();
                       }
 

@@ -64,7 +64,7 @@ class _VentePageState extends State<VentePage> {
         0.0, (sum, item) => sum + (item['prixTotal'] as num).toDouble());
   }
 
-  void _soumettreVente() async {
+  void _soumettreVente(DateTime date) async {
     if (_articlesSelectionnes.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text('Ajoutez des articles à la vente')),
@@ -129,13 +129,15 @@ class _VentePageState extends State<VentePage> {
           height: 300,
           child: MobileScanner(
             onDetect: (barcode) async {
-              if (barcode.barcodes.isNotEmpty && barcode.barcodes.first.rawValue != null) {
+              if (barcode.barcodes.isNotEmpty &&
+                  barcode.barcodes.first.rawValue != null) {
                 String scannedCode = barcode.barcodes.first.rawValue!;
                 Navigator.of(context).pop(); // Fermer le scanner
 
                 try {
                   // 1. D'abord chercher dans produits par code-barre
-                  QuerySnapshot produitsResult = await FirebaseFirestore.instance
+                  QuerySnapshot produitsResult = await FirebaseFirestore
+                      .instance
                       .collection('produits')
                       .where('code_barre', isEqualTo: scannedCode)
                       .get();
@@ -151,7 +153,7 @@ class _VentePageState extends State<VentePage> {
 
                     if (stockResult.docs.isNotEmpty) {
                       Map<String, dynamic> produitStock =
-                      stockResult.docs.first.data() as Map<String, dynamic>;
+                          stockResult.docs.first.data() as Map<String, dynamic>;
 
                       if (currentContext.mounted) {
                         _showQuantiteDialog(
@@ -163,7 +165,8 @@ class _VentePageState extends State<VentePage> {
                     } else {
                       if (currentContext.mounted) {
                         ScaffoldMessenger.of(currentContext).showSnackBar(
-                          SnackBar(content: Text('Produit non trouvé en stock')),
+                          SnackBar(
+                              content: Text('Produit non trouvé en stock')),
                         );
                       }
                     }
@@ -189,203 +192,204 @@ class _VentePageState extends State<VentePage> {
     );
   }
 
- // Fonction pour suspendre une vente
-void _suspendreVente() async {
-  // Vérification des articles
-  if (_articlesSelectionnes.isEmpty) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text('Ajoutez des articles avant de suspendre!')),
-    );
-    return;
-  }
-
-  // Vérification de l'authentification
-  final user = FirebaseAuth.instance.currentUser;
-  if (user == null) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text('Authentification requise')),
-    );
-    return;
-  }
-
-  // Demande du nom du client
-  final clientName = await _demanderNomClient();
-  if (clientName == null || clientName.isEmpty) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text('Nom du client requis')),
-    );
-    return;
-  }
-
-  try {
-    // Génération d'un ID unique pour la vente
-    final venteId = '${DateTime.now().millisecondsSinceEpoch}_${user.uid}';
-    
-    // Enregistrement dans Firestore
-    await FirebaseFirestore.instance.collection('ventes').doc(venteId).set({
-      'id': venteId,
-      'client': clientName.trim(),
-      'articles': _articlesSelectionnes,
-      'vendeurId': user.uid,
-      'vendeurNom': user.displayName ?? 'Vendeur',
-      'montantTotal': _montantTotal,
-      'statut': 'suspendue',
-      'date': Timestamp.now(),
-      'createdAt': FieldValue.serverTimestamp(),
-    });
-
-    // Réinitialisation de la vente
-    _reinitialiserVenteActuelle();
-
-    // Confirmation à l'utilisateur
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text('Vente suspendue pour $clientName'),
-        duration: const Duration(seconds: 2),
-      ),
-    );
-
-  } catch (e, stackTrace) {
-    debugPrint('Erreur suspension vente: $e\n$stackTrace');
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: const Text('Erreur lors de la suspension'),
-        duration: const Duration(seconds: 2),
-        action: SnackBarAction(
-          label: 'Réessayer',
-          onPressed: _suspendreVente,
-        ),
-      ),
-    );
-  }
-}
-
-// Fonction helper pour demander le nom du client
-Future<String?> _demanderNomClient() async {
-  final controller = TextEditingController();
-  return showDialog<String>(
-    context: context,
-    barrierDismissible: false,
-    builder: (context) => AlertDialog(
-      title: const Text('Nom du client'),
-      content: TextField(
-        controller: controller,
-        decoration: const InputDecoration(
-          hintText: 'Entrez le nom du client',
-          border: OutlineInputBorder(),
-        ),
-        autofocus: true,
-      ),
-      actions: [
-        TextButton(
-          onPressed: () => Navigator.pop(context),
-          child: const Text('Annuler'),
-        ),
-        TextButton(
-          onPressed: () {
-            if (controller.text.trim().isNotEmpty) {
-              Navigator.pop(context, controller.text.trim());
-            }
-          },
-          child: const Text('Confirmer'),
-        ),
-      ],
-    ),
-  );
-}
-
-// Fonction helper pour réinitialiser la vente
-void _reinitialiserVenteActuelle() {
-  setState(() {
-    _articlesSelectionnes.clear();
-    _montantTotal = 0.0;
-  });
-}
-
-  // Affiche la liste des ventes suspendues du vendeur connecté
-void _afficherVentesSuspendues() async {
-  final user = FirebaseAuth.instance.currentUser;
-  if (user == null) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text('Vous devez être connecté')),
-    );
-    return;
-  }
-
-  try {
-    QuerySnapshot querySnapshot = await FirebaseFirestore.instance
-        .collection('ventes')
-        .where('statut', isEqualTo: 'suspendue')
-        .where('vendeurId', isEqualTo: user.uid) // Filtre par vendeur
-        .orderBy('date', descending: true)
-        .get();
-
-    if (querySnapshot.docs.isEmpty) {
+  // Fonction pour suspendre une vente
+  void _suspendreVente() async {
+    // Vérification des articles
+    if (_articlesSelectionnes.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Aucune vente suspendue')),
+        const SnackBar(
+            content: Text('Ajoutez des articles avant de suspendre!')),
       );
       return;
     }
 
-    showDialog(
-      context: context,
-      builder: (context) {
-        return AlertDialog(
-          title: const Text('Mes Ventes Suspendues'),
-          content: SizedBox(
-            width: double.maxFinite,
-            child: ListView.builder(
-              shrinkWrap: true,
-              itemCount: querySnapshot.docs.length,
-              itemBuilder: (context, index) {
-                final doc = querySnapshot.docs[index];
-                final data = doc.data() as Map<String, dynamic>;
-                final date = (data['date'] as Timestamp).toDate();
-                final dateFormat = DateFormat('dd/MM/yyyy HH:mm').format(date);
-                
-                return Card(
-                  margin: const EdgeInsets.symmetric(vertical: 4),
-                  child: ListTile(
-                    title: Text('Vente ${data['id']}'),
-                    subtitle: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text('${data['montantTotal']} FCFA'),
-                        Text('Client: ${data['client'] ?? 'Non spécifié'}'),
-                        Text('Date: $dateFormat'),
-                      ],
-                    ),
-                    trailing: IconButton(
-                      icon: const Icon(Icons.replay, color: Colors.blue),
-                      onPressed: () {
-                        _reprendreVente(doc);
-                        Navigator.pop(context);
-                      },
-                    ),
-                  ),
-                );
-              },
-            ),
+    // Vérification de l'authentification
+    final user = FirebaseAuth.instance.currentUser;
+    if (user == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Authentification requise')),
+      );
+      return;
+    }
+
+    // Demande du nom du client
+    final clientName = await _demanderNomClient();
+    if (clientName == null || clientName.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Nom du client requis')),
+      );
+      return;
+    }
+
+    try {
+      // Génération d'un ID unique pour la vente
+      final venteId = '${DateTime.now().millisecondsSinceEpoch}_${user.uid}';
+
+      // Enregistrement dans Firestore
+      await FirebaseFirestore.instance.collection('ventes').doc(venteId).set({
+        'id': venteId,
+        'client': clientName.trim(),
+        'articles': _articlesSelectionnes,
+        'vendeurId': user.uid,
+        'vendeurNom': user.displayName ?? 'Vendeur',
+        'montantTotal': _montantTotal,
+        'statut': 'suspendue',
+        'date': Timestamp.now(),
+        'createdAt': FieldValue.serverTimestamp(),
+      });
+
+      // Réinitialisation de la vente
+      _reinitialiserVenteActuelle();
+
+      // Confirmation à l'utilisateur
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Vente suspendue pour $clientName'),
+          duration: const Duration(seconds: 2),
+        ),
+      );
+    } catch (e, stackTrace) {
+      debugPrint('Erreur suspension vente: $e\n$stackTrace');
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: const Text('Erreur lors de la suspension'),
+          duration: const Duration(seconds: 2),
+          action: SnackBarAction(
+            label: 'Réessayer',
+            onPressed: _suspendreVente,
           ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.pop(context),
-              child: const Text('Fermer'),
-            ),
-          ],
-        );
-      },
-    );
-  } catch (e) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text('Erreur: ${e.toString()}')),
-    );
-    debugPrint('Erreur ventes suspendues: $e');
+        ),
+      );
+    }
   }
-}
+
+// Fonction helper pour demander le nom du client
+  Future<String?> _demanderNomClient() async {
+    final controller = TextEditingController();
+    return showDialog<String>(
+      context: context,
+      barrierDismissible: false,
+      builder: (context) => AlertDialog(
+        title: const Text('Nom du client'),
+        content: TextField(
+          controller: controller,
+          decoration: const InputDecoration(
+            hintText: 'Entrez le nom du client',
+            border: OutlineInputBorder(),
+          ),
+          autofocus: true,
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Annuler'),
+          ),
+          TextButton(
+            onPressed: () {
+              if (controller.text.trim().isNotEmpty) {
+                Navigator.pop(context, controller.text.trim());
+              }
+            },
+            child: const Text('Confirmer'),
+          ),
+        ],
+      ),
+    );
+  }
+
+// Fonction helper pour réinitialiser la vente
+  void _reinitialiserVenteActuelle() {
+    setState(() {
+      _articlesSelectionnes.clear();
+      _montantTotal = 0.0;
+    });
+  }
+
+  // Affiche la liste des ventes suspendues du vendeur connecté
+  void _afficherVentesSuspendues() async {
+    final user = FirebaseAuth.instance.currentUser;
+    if (user == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Vous devez être connecté')),
+      );
+      return;
+    }
+
+    try {
+      QuerySnapshot querySnapshot = await FirebaseFirestore.instance
+          .collection('ventes')
+          .where('statut', isEqualTo: 'suspendue')
+          .where('vendeurId', isEqualTo: user.uid) // Filtre par vendeur
+          .orderBy('date', descending: true)
+          .get();
+
+      if (querySnapshot.docs.isEmpty) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Aucune vente suspendue')),
+        );
+        return;
+      }
+
+      showDialog(
+        context: context,
+        builder: (context) {
+          return AlertDialog(
+            title: const Text('Mes Ventes Suspendues'),
+            content: SizedBox(
+              width: double.maxFinite,
+              child: ListView.builder(
+                shrinkWrap: true,
+                itemCount: querySnapshot.docs.length,
+                itemBuilder: (context, index) {
+                  final doc = querySnapshot.docs[index];
+                  final data = doc.data() as Map<String, dynamic>;
+                  final date = (data['date'] as Timestamp).toDate();
+                  final dateFormat =
+                      DateFormat('dd/MM/yyyy HH:mm').format(date);
+
+                  return Card(
+                    margin: const EdgeInsets.symmetric(vertical: 4),
+                    child: ListTile(
+                      title: Text('Vente ${data['id']}'),
+                      subtitle: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text('${data['montantTotal']} FCFA'),
+                          Text('Client: ${data['client'] ?? 'Non spécifié'}'),
+                          Text('Date: $dateFormat'),
+                        ],
+                      ),
+                      trailing: IconButton(
+                        icon: const Icon(Icons.replay, color: Colors.blue),
+                        onPressed: () {
+                          _reprendreVente(doc);
+                          Navigator.pop(context);
+                        },
+                      ),
+                    ),
+                  );
+                },
+              ),
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(context),
+                child: const Text('Fermer'),
+              ),
+            ],
+          );
+        },
+      );
+    } catch (e) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Erreur: ${e.toString()}')),
+      );
+      debugPrint('Erreur ventes suspendues: $e');
+    }
+  }
 
 // Reprend une vente suspendue en chargeant ses articles et montant total
-void _reprendreVente(DocumentSnapshot vente) async {
+  void _reprendreVente(DocumentSnapshot vente) async {
     try {
       setState(() {
         _articlesSelectionnes =
@@ -470,99 +474,6 @@ void _reprendreVente(DocumentSnapshot vente) async {
                 ),
               ],
             ),
-
-/*
-            Expanded(
-              child: StreamBuilder<QuerySnapshot>(
-                stream: FirebaseFirestore.instance.collection('stock').snapshots(),
-                builder: (context, snapshot) {
-                  if (!snapshot.hasData)
-                    return Center(child: CircularProgressIndicator());
-
-                  final stock = snapshot.data!.docs.where((doc) {
-                    final produit = doc.data() as Map<String, dynamic>;
-                    return produit['nom']
-                        .toLowerCase()
-                        .contains(_searchQuery);
-                  }).toList();
-
-                  return ListView.builder(
-                    itemCount: stock.length,
-                    itemBuilder: (context, index) {
-                      final produit = stock[index].data() as Map<String, dynamic>;
-
-                      return Card(
-                        margin: EdgeInsets.symmetric(vertical: 4),
-                        child: ListTile(
-                          title: Text('${produit['gamme']} ${produit['nom']} ',
-                              style: TextStyle(fontWeight: FontWeight.bold)),
-                          subtitle: Text(
-                              'Prix: ${produit['pvp']} FCFA'),
-                          trailing: ElevatedButton.icon(
-                            onPressed: () {
-                              showDialog(
-                                context: context,
-                                builder: (context) {
-                                  int quantite = 1;
-                                  return AlertDialog(
-                                    title: Text('Sélectionner la quantité'),
-                                    content: Column(
-                                      mainAxisSize: MainAxisSize.min,
-                                      children: [
-                                        Text(
-                                            'Prix: ${produit['pvp']} FCFA'),
-                                        Text(
-                                            'Stock disponible: ${produit['quantiteDisponible']}'),
-                                        TextField(
-                                          keyboardType: TextInputType.number,
-                                          decoration: InputDecoration(
-                                              labelText: 'Quantité'),
-                                          onChanged: (value) {
-                                            quantite = int.tryParse(value) ?? 1;
-                                          },
-                                        ),
-                                      ],
-                                    ),
-                                    actions: [
-                                      TextButton(
-                                        onPressed: () =>
-                                            Navigator.pop(context),
-                                        child: Text('Annuler'),
-                                      ),
-                                      TextButton(
-                                        onPressed: () {
-                                          if (quantite >
-                                              produit['quantiteDisponible']) {
-                                            Navigator.pop(context);
-                                            ScaffoldMessenger.of(context)
-                                                .showSnackBar(
-                                              SnackBar(
-                                                  content: Text(
-                                                      'Stock insuffisant ! Disponible : ${produit['quantiteDisponible']}')),
-                                            );
-                                          } else {
-                                            _ajouterArticle(produit, quantite);
-                                            Navigator.pop(context);
-                                          }
-                                        },
-                                        child: Text('Ajouter'),
-                                      ),
-                                    ],
-                                  );
-                                },
-                              );
-                            },
-                            icon: Icon(Icons.add_shopping_cart),
-                            label: Text('Ajouter'),
-                          ),
-                        ),
-                      );
-                    },
-                  );
-                },
-              ),
-            ),
-*/
 
             Expanded(
               child: StreamBuilder<QuerySnapshot>(
@@ -703,7 +614,7 @@ void _reprendreVente(DocumentSnapshot vente) async {
                 mainAxisAlignment: MainAxisAlignment.spaceEvenly,
                 children: [
                   ElevatedButton.icon(
-                    onPressed: _soumettreVente,
+                    onPressed: _confirmerEtSoumettreVente,
                     icon: Icon(Icons.check),
                     label: Text('Valider la vente'),
                     style: ElevatedButton.styleFrom(
@@ -727,6 +638,23 @@ void _reprendreVente(DocumentSnapshot vente) async {
         ),
       ),
     );
+  }
+
+  Future<void> _confirmerEtSoumettreVente() async {
+    DateTime dateActuelle = DateTime.now();
+
+    final DateTime? dateSelectionnee = await showDatePicker(
+      context: context,
+      initialDate: dateActuelle,
+      firstDate: DateTime(2020),
+      lastDate: DateTime(2100),
+      locale: const Locale("fr", "FR"),
+    );
+
+    // S'il n'a rien choisi, on utilise la date actuelle
+    final DateTime dateFinale = dateSelectionnee ?? dateActuelle;
+
+    _soumettreVente(dateFinale);
   }
 
   void _showQuantiteDialog(Map<String, dynamic> produit, double prixPourCalcul,
