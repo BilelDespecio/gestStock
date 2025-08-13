@@ -1,5 +1,6 @@
 import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter_downloader/flutter_downloader.dart';
+import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:gest_stock/newVersion/admin/add_account.dart';
 import 'package:gest_stock/newVersion/magaziner/addStockShop.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
@@ -43,6 +44,12 @@ class MyApp extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
+      localizationsDelegates: const [
+        GlobalMaterialLocalizations.delegate, // Nécessaire pour DatePicker
+        GlobalWidgetsLocalizations.delegate,
+        GlobalCupertinoLocalizations.delegate, // Si vous utilisez des widgets Cupertino
+      ],
+      supportedLocales: const [Locale('fr', 'FR')], // Français par défaut
       debugShowCheckedModeBanner: false,
       title: 'Gestion de Stock',
       theme: ThemeData(primarySwatch: Colors.blue),

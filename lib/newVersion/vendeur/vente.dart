@@ -20,8 +20,10 @@ class _VentePageState extends State<VentePage> {
         .collection('ventes')
         .where('statut', whereIn: ['validé', 'en attente']).get();
     int numeroVente = ventesValidees.docs.length + 1;
-    String date = DateTime.now().toIso8601String().split('T')[0];
-    return 'VET$numeroVente-$date';
+    // Remplacer en haut du fichier
+    String _currentDate = DateTime.now().toIso8601String().split('T')[0];
+
+    return 'VET$numeroVente-$_currentDate';
   }
 
   void _ajouterArticle(Map<String, dynamic> article, int quantite) {
@@ -64,26 +66,18 @@ class _VentePageState extends State<VentePage> {
         0.0, (sum, item) => sum + (item['prixTotal'] as num).toDouble());
   }
 
-  void _soumettreVente(DateTime date) async {
-    if (_articlesSelectionnes.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Ajoutez des articles à la vente')),
-      );
-      return;
-    }
-
-    User? user = FirebaseAuth.instance.currentUser;
-    if (user == null) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Vous devez être connecté')),
-      );
-      return;
-    }
-
-    String venteId = await _genererIdVente();
-
+  Future<void> _soumettreVente(DateTime date) async {
     try {
-      // Récupérer les infos complètes du vendeur
+      if (_articlesSelectionnes.isEmpty) {
+        throw Exception("Aucun article sélectionné");
+      }
+
+      User? user = FirebaseAuth.instance.currentUser;
+      if (user == null) {
+        throw Exception("Utilisateur non connecté");
+      }
+
+      String venteId = await _genererIdVente();
       DocumentSnapshot vendeurDoc = await FirebaseFirestore.instance
           .collection('users')
           .doc(user.uid)
@@ -94,26 +88,21 @@ class _VentePageState extends State<VentePage> {
         'articles': _articlesSelectionnes,
         'montantTotal': _montantTotal,
         'statut': 'en attente',
-        'date': Timestamp.now(),
+        'date': Timestamp.fromDate(date),
         'vendeurId': user.uid,
-        'vendeurNom':
-            vendeurDoc['name'] ?? user.displayName ?? 'Vendeur inconnu',
+        'vendeurNom': vendeurDoc['name'] ?? user.displayName ?? 'Vendeur inconnu',
         'vendeurEmail': user.email,
-      });
+      }, SetOptions(merge: true));
 
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Vente enregistrée avec succès !')),
-      );
-
+      if (!mounted) return;
       setState(() {
         _articlesSelectionnes.clear();
         _montantTotal = 0.0;
       });
+
     } catch (e) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-            content: Text('Erreur lors de l\'enregistrement: ${e.toString()}')),
-      );
+      debugPrint("Erreur _soumettreVente: $e");
+      rethrow;
     }
   }
 
@@ -613,50 +602,103 @@ class _VentePageState extends State<VentePage> {
               Row(
                 mainAxisAlignment: MainAxisAlignment.spaceEvenly,
                 children: [
-                  ElevatedButton.icon(
-                    onPressed: _confirmerEtSoumettreVente,
-                    icon: Icon(Icons.check),
-                    label: Text('Valider la vente'),
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: Colors.green,
-                      foregroundColor: Colors.white,
+                  Expanded( // <-- Ajoutez Expanded ici
+                    child: Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 4.0),
+                      child: ElevatedButton.icon(
+                        onPressed: () => _confirmerEtSoumettreVente(context),
+                        icon: Icon(Icons.check),
+                        label: Text('Valider la vente'),
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: Colors.green,
+                          foregroundColor: Colors.white,
+                        ),
+                      ),
                     ),
                   ),
-                  ElevatedButton.icon(
-                    onPressed: _suspendreVente,
-                    icon: Icon(Icons.pause),
-                    label: Text('Suspendre la vente'),
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: Colors.orange,
-                      foregroundColor: Colors.white,
+                  Expanded( // <-- Ajoutez Expanded ici
+                    child: Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 4.0),
+                      child: ElevatedButton.icon(
+                        onPressed: _suspendreVente,
+                        icon: Icon(Icons.pause),
+                        label: Text('Suspendre la vente'),
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: Colors.orange,
+                          foregroundColor: Colors.white,
+                        ),
+                      ),
                     ),
                   ),
                 ],
-              ),
+              )
             ],
           ],
         ),
       ),
     );
   }
+  Future<void> _confirmerEtSoumettreVente(BuildContext context) async {
+    try {
+      if (!mounted) return;
 
-  Future<void> _confirmerEtSoumettreVente() async {
-    DateTime dateActuelle = DateTime.now();
+      final DateTime dateActuelle = DateTime.now();
 
-    final DateTime? dateSelectionnee = await showDatePicker(
-      context: context,
-      initialDate: dateActuelle,
-      firstDate: DateTime(2020),
-      lastDate: DateTime(2100),
-      locale: const Locale("fr", "FR"),
-    );
+      // Sélection de la date
+      final DateTime? dateSelectionnee = await showDatePicker(
+        context: context,
+        initialDate: dateActuelle,
+        firstDate: DateTime(2020),
+        lastDate: DateTime(2100),
+        locale: const Locale("fr", "FR"), // Français
+      );
 
-    // S'il n'a rien choisi, on utilise la date actuelle
-    final DateTime dateFinale = dateSelectionnee ?? dateActuelle;
+      if (dateSelectionnee == null || !mounted) return;
 
-    _soumettreVente(dateFinale);
+      // Confirmation
+      final bool confirm = await showDialog<bool>(
+        context: context,
+        builder: (BuildContext dialogContext) {
+          return AlertDialog(
+            title: const Text("Confirmer la date"),
+            content: Text("Valider la vente pour le ${DateFormat('dd/MM/yyyy').format(dateSelectionnee)} ?"),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(dialogContext, false),
+                child: const Text("Annuler"),
+              ),
+              TextButton(
+                onPressed: () => Navigator.pop(dialogContext, true),
+                child: const Text("Confirmer"),
+              ),
+            ],
+          );
+        },
+      ) ?? false;
+
+      if (confirm) {
+        await _soumettreVente(dateSelectionnee);
+        if (!mounted) return;
+
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text("Vente enregistrée pour le ${DateFormat('dd/MM/yyyy').format(dateSelectionnee)}"),
+            duration: const Duration(seconds: 2),
+          ),
+        );
+      }
+    } catch (e) {
+      debugPrint("Erreur dans _confirmerEtSoumettreVente: $e");
+      if (!mounted) return;
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text("Erreur: ${e.toString()}"),
+          duration: const Duration(seconds: 2),
+        ),
+      );
+    }
   }
-
   void _showQuantiteDialog(Map<String, dynamic> produit, double prixPourCalcul,
       int stockDisponible) {
     int quantite = 1;

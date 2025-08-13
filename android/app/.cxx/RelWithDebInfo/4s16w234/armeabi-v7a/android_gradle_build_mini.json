@@ -1,0 +1,20 @@
+{
+  "buildFiles": [
+    "/home/billdespeco/flutter/packages/flutter_tools/gradle/src/main/groovy/CMakeLists.txt"
+  ],
+  "cleanCommandsComponents": [
+    [
+      "/home/billdespeco/Android/Sdk/cmake/3.22.1/bin/ninja",
+      "-C",
+      "/home/billdespeco/Documents/projet/gestStock/android/app/.cxx/RelWithDebInfo/4s16w234/armeabi-v7a",
+      "clean"
+    ]
+  ],
+  "buildTargetsCommandComponents": [
+    "/home/billdespeco/Android/Sdk/cmake/3.22.1/bin/ninja",
+    "-C",
+    "/home/billdespeco/Documents/projet/gestStock/android/app/.cxx/RelWithDebInfo/4s16w234/armeabi-v7a",
+    "{LIST_OF_TARGETS_TO_BUILD}"
+  ],
+  "libraries": {}
+}
