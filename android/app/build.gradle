@@ -1,60 +1,81 @@
-plugins {
-    id "com.android.application"
-    // Firebase plugin for Google Services
-    id 'com.google.gms.google-services'
-    id "kotlin-android"
-    // Flutter plugin (must be after Android and Kotlin plugins)
-    id "dev.flutter.flutter-gradle-plugin"
+plugins { 
+    id "com.android.application" 
+    id 'com.google.gms.google-services' 
+    id "kotlin-android" 
+    id "dev.flutter.flutter-gradle-plugin" 
 }
 
+import java.util.Properties
+import java.io.FileInputStream
+
+def keystoreProperties = new Properties()
+def keystorePropertiesFile = rootProject.file("key.properties")
+if (keystorePropertiesFile.exists()) {
+    keystoreProperties.load(new FileInputStream(keystorePropertiesFile))
+}
+
+// Définir la version de Kotlin ici (accessible partout)
+ext.kotlin_version = '2.1.0'
+
 android {
-    namespace = "com.example.gest_stock"  // Remplace par ton vrai package name
+    namespace = "com.example.gest_stock"
     compileSdk = flutter.compileSdkVersion
     ndkVersion = flutter.ndkVersion
 
     signingConfigs {
         debug {
-            storeFile file('debug.keystore')
+            storeFile file("../../debug.keystore")
             storePassword 'android'
             keyAlias 'androiddebugkey'
             keyPassword 'android'
         }
+
+        release {
+            if (keystorePropertiesFile.exists()) {
+                keyAlias keystoreProperties['keyAlias']
+                keyPassword keystoreProperties['keyPassword']
+                storeFile file(keystoreProperties['storeFile'])
+                storePassword keystoreProperties['storePassword']
+            }
+        }
     }
     
     compileOptions {
-        sourceCompatibility = JavaVersion.VERSION_1_8 // Compatibilité Java 8
-        targetCompatibility = JavaVersion.VERSION_1_8
+        sourceCompatibility = JavaVersion.VERSION_17
+        targetCompatibility = JavaVersion.VERSION_17
         coreLibraryDesugaringEnabled true
     }
 
     kotlinOptions {
-        jvmTarget = JavaVersion.VERSION_1_8 // Target JVM pour Kotlin
+        jvmTarget = '17'
     }
 
     defaultConfig {
-        applicationId = "com.example.gest_stock" // Identifiant unique de l'application
-        minSdk 23
+        applicationId = "com.example.gest_stock"
+        minSdkVersion flutter.minSdkVersion
         targetSdk = flutter.targetSdkVersion
         versionCode = flutter.versionCode
         versionName = flutter.versionName
     }
 
     buildTypes {
+        debug {
+            signingConfig signingConfigs.debug
+        }
+
         release {
-            // Ajouter une configuration de signature pour la production
-            signingConfig = signingConfigs.debug // Modifier pour utiliser une clé sécurisée en production
+            signingConfig signingConfigs.release
+            minifyEnabled false
+            shrinkResources false
         }
     }
 }
 
 flutter {
-    source = "../.." // Chemin source Flutter
+    source = "../.."
 }
 
 dependencies {
     implementation "org.jetbrains.kotlin:kotlin-stdlib:$kotlin_version"
     coreLibraryDesugaring 'com.android.tools:desugar_jdk_libs:2.0.4'
 }
-
-// Appliquer le plugin Google Services (Firebase)
-apply plugin: 'com.google.gms.google-services'

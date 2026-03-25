@@ -193,7 +193,7 @@ Future<void> _imprimerFacture(BuildContext context, String factureUrl) async {
                   return Card(
                     margin: EdgeInsets.symmetric(vertical: 5),
                     child: ListTile(
-                      leading: Icon(FontAwesomeIcons.box, color: Colors.blue),
+                      leading: Icon(FontAwesomeIcons.box as IconData?, color: Colors.blue),
                       title: Text(article['nom'] ?? 'Article inconnu',
                           style: TextStyle(fontWeight: FontWeight.bold)),
                       subtitle: Text(

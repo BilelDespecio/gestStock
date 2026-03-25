@@ -20,21 +20,27 @@ import 'package:gest_stock/newVersion/magaziner/home.dart';
 import 'package:gest_stock/newVersion/magaziner/manage_commande.dart';
 import 'package:gest_stock/newVersion/vendeur/home.dart';
 import 'package:gest_stock/newVersion/vendeur/vente.dart';
-
+//import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'newVersion/contact/add_contact_page.dart';
 import 'newVersion/contact/contact_list_page.dart';
 
-
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
- //await FlutterDownloader.initialize(debug: true);
-  // 🔥 Initialisation de Firebase
+  //await FlutterDownloader.initialize(debug: true);
+  // Initialisation de Firebase
   await Firebase.initializeApp();
 
-  // 🔥 Initialisation de Supabase
+  // Initialisation de Supabase avec les variables du .env
+  /*await Supabase.initialize(
+    url: dotenv.env['SUPABASE_URL']!,  // URL depuis .env
+    anonKey: dotenv.env['SUPABASE_ANON_KEY']!,  // Anon key depuis .env
+  );*/
+  // Initialisation de Supabase
   await Supabase.initialize(
-    url: 'https://hhsccylhbebllyqlihus.supabase.co',  // Remplace par ton URL Supabase
-    anonKey: 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imhoc2NjeWxoYmVibGx5cWxpaHVzIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Mzk1NDU5MjEsImV4cCI6MjA1NTEyMTkyMX0.genT5pILxWFnmFXvgLlX-nOUdQBw7AScyo55McW0ah4',  // Remplace par ta clé anonyme
+    url:
+        'https://urznwnznbzfhrsmsdpvu.supabase.co', // Remplace par ton URL Supabase
+    anonKey:
+        'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InVyem53bnpuYnpmaHJzbXNkcHZ1Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzM2NjIwNjAsImV4cCI6MjA4OTIzODA2MH0.1rAkb0ux2y3z9R8ikmVpuTWJAmXJkxs0IjkpOQhhrWc', // Remplace par ta clé anonyme
   );
 
   runApp(MyApp());
@@ -47,7 +53,8 @@ class MyApp extends StatelessWidget {
       localizationsDelegates: const [
         GlobalMaterialLocalizations.delegate, // Nécessaire pour DatePicker
         GlobalWidgetsLocalizations.delegate,
-        GlobalCupertinoLocalizations.delegate, // Si vous utilisez des widgets Cupertino
+        GlobalCupertinoLocalizations
+            .delegate, // Si vous utilisez des widgets Cupertino
       ],
       supportedLocales: const [Locale('fr', 'FR')], // Français par défaut
       debugShowCheckedModeBanner: false,

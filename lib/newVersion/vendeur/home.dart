@@ -4,6 +4,7 @@ import 'package:gest_stock/newVersion/caisier/homeCaisier.dart';
 import 'package:gest_stock/newVersion/contact/contact_list_page.dart';
 import 'package:gest_stock/newVersion/detailProduct.dart';
 import 'package:gest_stock/newVersion/vendeur/historique.dart';
+import 'package:gest_stock/newVersion/vendeur/updateImageUrl.dart';
 import 'package:mobile_scanner/mobile_scanner.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 
@@ -146,7 +147,6 @@ class _HomePageVendeurState extends State<HomePageVendeur> {
                     MaterialPageRoute(
                         builder: (context) => AccueilCaissierPage()));
               },
-              
               icon: Icon(Icons.paid_outlined)),
           IconButton(
               onPressed: () {
@@ -182,8 +182,10 @@ class _HomePageVendeurState extends State<HomePageVendeur> {
               children: [
                 ElevatedButton.icon(
                   onPressed: () {
-                    Navigator.push(context, MaterialPageRoute(
-                      builder: (context) => HistoriquePage()));
+                    Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                            builder: (context) => HistoriquePage()));
                   },
                   icon: const Icon(Icons.history),
                   label: const Text('history'),
@@ -193,6 +195,18 @@ class _HomePageVendeurState extends State<HomePageVendeur> {
                           horizontal: MediaQuery.of(context).size.width / 18),
                       iconColor: Colors.grey),
                 ),
+                // Ajoute de bouton pour mettre ajout des images temporairement
+               /* FloatingActionButton(
+                  onPressed: () {
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                          builder: (context) => MigrationScreen()),
+                    );
+                  },
+                  child: Icon(Icons.sync),
+                  backgroundColor: Colors.orange,
+                ),*/
                 ElevatedButton.icon(
                   onPressed: () {
                     Navigator.pushNamed(context, '/vente');
@@ -280,7 +294,6 @@ class _HomePageVendeurState extends State<HomePageVendeur> {
                         final int? prixDecide = produit['prixDecide'] != null
                             ? (produit['prixDecide'])
                             : null;
-
 
                         final String? newPoids = produit['poidsProduit'] != null
                             ? ('${produit['poidsProduit'].toInt()} ${produit['unite']}')

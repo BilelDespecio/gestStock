@@ -28,7 +28,6 @@ class _ValiderCommandePageState extends State<ValiderCommandePage> {
   List<Map<String, dynamic>> _validatedArticles = [];
   bool isLoading = false; // Indicateur de chargement
 
-  @override
  @override
 void initState() {
   super.initState();
