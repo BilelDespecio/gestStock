@@ -11,6 +11,7 @@ class ClientContact {
   final DateTime dateAjout;
   final List<String> canauxCommunication; // SMS, Email, WhatsApp, etc.
   final bool consentementPub;
+  final String? photoUrl; // Nouveau champ pour le futur
 
   ClientContact({
     required this.id,
@@ -23,21 +24,23 @@ class ClientContact {
     required this.dateAjout,
     this.canauxCommunication = const [],
     required this.consentementPub,
+    this.photoUrl,
   });
 
   factory ClientContact.fromFirestore(DocumentSnapshot doc) {
     Map data = doc.data() as Map;
     return ClientContact(
       id: doc.id,
-      nom: data['nom'],
-      prenom: data['prenom'],
-      telephone: data['telephone'],
-      email: data['email'],
+      nom: data['nom'] ?? '',
+      prenom: data['prenom'] ?? '',
+      telephone: data['telephone'] ?? '',
+      email: data['email'] ?? '',
       entreprise: data['entreprise'],
       notes: data['notes'],
-      dateAjout: data['dateAjout'].toDate(),
+      dateAjout: (data['dateAjout'] as Timestamp?)?.toDate() ?? DateTime.now(),
       canauxCommunication: List<String>.from(data['canauxCommunication'] ?? []),
       consentementPub: data['consentementPub'] ?? false,
+      photoUrl: data['photoUrl'],
     );
   }
 
@@ -52,7 +55,15 @@ class ClientContact {
       'dateAjout': Timestamp.fromDate(dateAjout),
       'canauxCommunication': canauxCommunication,
       'consentementPub': consentementPub,
-      'tags': [], // Pour segmentation future
+      'photoUrl': photoUrl,
+      'searchKeywords': [
+        nom.toLowerCase(),
+        prenom.toLowerCase(),
+        telephone.replaceAll(RegExp(r'[^0-9]'), ''),
+      ],
     };
   }
+
+  String get nomComplet => '$prenom $nom';
+  String get initiales => (prenom.isNotEmpty ? prenom[0] : '') + (nom.isNotEmpty ? nom[0] : '');
 }

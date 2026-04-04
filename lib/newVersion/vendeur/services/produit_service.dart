@@ -3,39 +3,54 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 class ProduitService {
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
 
-  Stream<List<Map<String, dynamic>>> getProductsStream() {
+  Stream<List<Map<String, dynamic>>> getProductsStream({bool isMagasin = false}) {
     return _firestore
         .collection('produits')
         .snapshots()
         .asyncMap((produitSnapshot) async {
+      
+      // Récupérer le stock principal (magasin)
       final stockSnapshot = await _firestore.collection('stock').get();
+      Map<String, dynamic> stockMap = {};
+      for (var doc in stockSnapshot.docs) {
+        final data = doc.data();
+        if (data['nom'] != null) {
+          stockMap[data['nom']] = data;
+        }
+      }
 
-      Map<String, dynamic> stockMap = {
-        for (var stock in stockSnapshot.docs) stock['nom']: stock.data()
-      };
-
-      final stockBoutiqueSnapshot = await _firestore.collection('stockBoutique').get();
-
-      Map<String, dynamic> stockBoutiqueMap = {
-        for (var stock in stockBoutiqueSnapshot.docs) stock['nom']: stock.data()
-      };
+      // Récupérer le stock boutique si nécessaire
+      Map<String, dynamic> stockBoutiqueMap = {};
+      if (!isMagasin) {
+        final stockBoutiqueSnapshot = await _firestore.collection('stockBoutique').get();
+        for (var doc in stockBoutiqueSnapshot.docs) {
+          final data = doc.data();
+          if (data['nom'] != null) {
+            stockBoutiqueMap[data['nom']] = data;
+          }
+        }
+      }
 
       List<Map<String, dynamic>> products = produitSnapshot.docs.map((prodDoc) {
         var produitData = prodDoc.data();
         String produitNom = produitData['nom'];
 
         var stockData = stockMap[produitNom];
-        double prixVente = stockData?['pvp']?.toDouble() ?? 0.0;
+        double pvp = stockData?['pvp']?.toDouble() ?? 0.0;
+        int quantiteMagasin = stockData?['quantiteDisponible'] ?? 0;
 
-        var stockBoutiqueData = stockBoutiqueMap[produitNom];
-        int quantiteBoutique = stockBoutiqueData?['quantite'] ?? 0;
+        int quantiteAffichage = quantiteMagasin;
+        if (!isMagasin) {
+          var stockBoutiqueData = stockBoutiqueMap[produitNom];
+          quantiteAffichage = stockBoutiqueData?['quantite'] ?? 0;
+        }
 
         return {
           'id': prodDoc.id,
           'gamme': produitData['gamme'],
           'nom': produitNom,
-          'prixVente': prixVente,
-          'quantiteDisponible': quantiteBoutique,
+          'prixVente': pvp,
+          'quantiteDisponible': quantiteAffichage,
           'image': produitData['imageUrl'] ?? '',
           'seuil_critique': produitData['seuil_critique'] ?? 0,
           'seuil_alerte': produitData['seuil_alerte'] ?? 0,

@@ -6,6 +6,7 @@ import 'package:gest_stock/newVersion/detailProduct.dart';
 import 'package:gest_stock/newVersion/vendeur/historique.dart';
 import 'package:gest_stock/newVersion/vendeur/updateImageUrl.dart';
 import 'package:mobile_scanner/mobile_scanner.dart';
+import 'package:gest_stock/newVersion/menu/app_menu_sheet.dart';
 
 // --- Imports des widgets, constantes et services ---
 import 'constants.dart';
@@ -105,55 +106,81 @@ class _HomePageVendeurState extends State<HomePageVendeur> {
       backgroundColor: AppColors.backgroundColor,
       body: SafeArea(
         child: _isLoading 
-            ? const Center(child: CircularProgressIndicator(color: AppColors.accentColor))
-            : SingleChildScrollView(
-          child: Padding(
-            padding: const EdgeInsets.all(20.0),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                HeaderSection(
-                  onPaidPressed: () => Navigator.push(context, MaterialPageRoute(builder: (context) => AccueilCaissierPage())),
-                  onContactPressed: () => Navigator.push(context, MaterialPageRoute(builder: (context) => ContactsListPage())),
-                  onRefreshPressed: () {
-                    _loadData();
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      const SnackBar(content: Text('Données rechargées avec succès')),
-                    );
-                  },
-                ),
-                const SizedBox(height: 24),
+            ? Center(child: CircularProgressIndicator(color: AppColors.accentColor))
+            : CustomScrollView(
+                slivers: [
+                  SliverPadding(
+                    padding: const EdgeInsets.all(20.0),
+                    sliver: SliverList(
+                      delegate: SliverChildListDelegate([
+                        HeaderSection(
+                          title: 'Vendeur',
+                          subtitle: 'Gérez vos ventes facilement',
+                          actions: [
+                            HeaderAction(
+                              icon: Icons.payments_outlined, 
+                              onPressed: () => Navigator.push(context, MaterialPageRoute(builder: (context) => AccueilCaissierPage())),
+                              color: AppColors.priceColor
+                            ),
+                            HeaderAction(
+                              icon: Icons.contacts_outlined, 
+                              onPressed: () => Navigator.push(context, MaterialPageRoute(builder: (context) => ContactsListPage()))
+                            ),
+                            HeaderAction(
+                                  icon: Icons.menu,
+                                  onPressed: () {
+                                    showAppMenuSheet(context);
+                                  },
+                                ),
+                          ],
+                        ),
+                        const SizedBox(height: 24),
 
-                QuickActionsSection(
-                  onHistoryTap: () => Navigator.push(context, MaterialPageRoute(builder: (context) => HistoriquePage())),
-                  onSaleTap: () => Navigator.pushNamed(context, '/vente'),
-                ),
-                const SizedBox(height: 24),
+                        QuickActionsSection(
+                          actions: [
+                            QuickActionData(
+                              title: 'Vente', 
+                              icon: Icons.add_shopping_cart, 
+                              onTap: () => Navigator.pushNamed(context, '/vente'),
+                              color: AppColors.priceColor
+                            ),
+                            QuickActionData(
+                              title: 'Historique', 
+                              icon: Icons.history, 
+                              onTap: () => Navigator.push(context, MaterialPageRoute(builder: (context) => HistoriquePage()))
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 24),
 
-                const Text(
-                  'Produits',
-                  style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: AppColors.primaryTextColor),
-                ),
-                const SizedBox(height: 16),
+                        Text(
+                          'Produits',
+                          style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: AppColors.primaryTextColor),
+                        ),
+                        const SizedBox(height: 16),
 
-                SearchBarSection(
-                  controller: _searchController,
-                  onChanged: _filterProducts,
-                  onScanPressed: _scanBarcode,
-                ),
-                const SizedBox(height: 20),
-
-                ProductGrid(
-                  products: _filteredProducts,
-                  onProductTap: (produit) => Navigator.push(
-                    context,
-                    MaterialPageRoute(builder: (context) => DetailProduitPage(produit: produit)),
+                        SearchBarSection(
+                          controller: _searchController,
+                          onChanged: _filterProducts,
+                          onScanPressed: _scanBarcode,
+                        ),
+                        const SizedBox(height: 20),
+                      ]),
+                    ),
                   ),
-                ),
-              ],
-            ),
-          ),
-        ),
+                  SliverPadding(
+                    padding: const EdgeInsets.symmetric(horizontal: 20.0),
+                    sliver: SliverProductGrid(
+                      products: _filteredProducts,
+                      onProductTap: (produit) => Navigator.push(
+                        context,
+                        MaterialPageRoute(builder: (context) => DetailProduitPage(produit: produit)),
+                      ),
+                    ),
+                  ),
+                  const SliverToBoxAdapter(child: SizedBox(height: 100)),
+                ],
+              ),
       ),
     );
   }

@@ -11,7 +11,7 @@ class ProductGrid extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     if (products.isEmpty) {
-      return const Center(
+      return  Center(
         child: Padding(
           padding: EdgeInsets.symmetric(vertical: 50.0),
           child: Text(
@@ -40,6 +40,50 @@ class ProductGrid extends StatelessWidget {
           onTap: () => onProductTap(produit)
         );
       },
+    );
+  }
+}
+
+class SliverProductGrid extends StatelessWidget {
+  final List<Map<String, dynamic>> products;
+  final Function(Map<String, dynamic>) onProductTap;
+
+  const SliverProductGrid({required this.products, required this.onProductTap});
+
+  @override
+  Widget build(BuildContext context) {
+    if (products.isEmpty) {
+      return SliverToBoxAdapter(
+        child: Center(
+          child: Padding(
+            padding: const EdgeInsets.symmetric(vertical: 50.0),
+            child: Text(
+              'Aucun produit trouvé.',
+              style: TextStyle(color: AppColors.secondaryTextColor, fontSize: 16)
+            )
+          ),
+        ),
+      );
+    }
+
+    return SliverGrid(
+      gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+        crossAxisCount: 2,
+        crossAxisSpacing: 16,
+        mainAxisSpacing: 16,
+        childAspectRatio: 0.68,
+      ),
+      delegate: SliverChildBuilderDelegate(
+        (context, index) {
+          final produit = products[index];
+          return ProductCard(
+            produit: produit, 
+            key: ValueKey(produit['id']), 
+            onTap: () => onProductTap(produit)
+          );
+        },
+        childCount: products.length,
+      ),
     );
   }
 }
@@ -105,18 +149,20 @@ class ProductCard extends StatelessWidget {
                             imageUrl: imageUrl,
                             cacheKey: imageUrl,
                             fit: BoxFit.cover,
-                            placeholder: (context, url) => const Center(
+                            memCacheWidth: 250, // Optimisation mémoire cruciale !
+                            maxWidthDiskCache: 500, // Limite la taille en cache disque
+                            placeholder: (context, url) =>  Center(
                                 child: CircularProgressIndicator(
                                     strokeWidth: 2, color: AppColors.accentColor)),
                             errorWidget: (context, url, error) => Container(
                               color: Colors.grey.shade100,
-                              child: const Icon(Icons.image_not_supported,
+                              child:  Icon(Icons.image_not_supported,
                                   color: AppColors.secondaryTextColor, size: 40),
                             ),
                           )
                         : Container(
                             color: Colors.grey.shade100,
-                            child: const Icon(Icons.image,
+                            child:  Icon(Icons.image,
                                 color: AppColors.secondaryTextColor, size: 40),
                           ),
                   ),
@@ -128,14 +174,14 @@ class ProductCard extends StatelessWidget {
                     children: [
                       Text(
                         produit['gamme'] ?? 'Marque',
-                        style: const TextStyle(fontSize: 12, color: AppColors.accentColor),
+                        style:  TextStyle(fontSize: 12, color: AppColors.accentColor),
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
                       ),
                       const SizedBox(height: 4),
                       Text(
                         produit['nom'] ?? 'Nom inconnu',
-                        style: const TextStyle(
+                        style:  TextStyle(
                           fontSize: 15,
                           fontWeight: FontWeight.bold,
                           color: AppColors.primaryTextColor,
@@ -146,7 +192,7 @@ class ProductCard extends StatelessWidget {
                       const SizedBox(height: 4),
                       Text(
                         '${produit['type'] ?? 'Type'} - ${newPoids?.toString() ?? produit['poids']}',
-                        style: const TextStyle(fontSize: 11, color: AppColors.secondaryTextColor),
+                        style:  TextStyle(fontSize: 11, color: AppColors.secondaryTextColor),
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
                       ),
@@ -156,7 +202,7 @@ class ProductCard extends StatelessWidget {
                         children: [
                           Text(
                             '${prixDecide?.toInt() ?? prix.toInt()} FCFA',
-                            style: const TextStyle(
+                            style:  TextStyle(
                               fontSize: 14,
                               color: AppColors.priceColor,
                               fontWeight: FontWeight.bold,
@@ -164,7 +210,7 @@ class ProductCard extends StatelessWidget {
                           ),
                           Text(
                             'Stock: $quantite',
-                            style: const TextStyle(fontSize: 12, color: AppColors.secondaryTextColor),
+                            style:  TextStyle(fontSize: 12, color: AppColors.secondaryTextColor),
                           ),
                         ],
                       ),

@@ -2,14 +2,14 @@ import 'package:flutter/material.dart';
 import '../constants.dart';
 
 class HeaderSection extends StatelessWidget {
-  final VoidCallback onPaidPressed;
-  final VoidCallback onContactPressed;
-  final VoidCallback onRefreshPressed;
+  final String title;
+  final String subtitle;
+  final List<HeaderAction>? actions;
 
   const HeaderSection({
-    required this.onPaidPressed,
-    required this.onContactPressed,
-    required this.onRefreshPressed,
+    this.title = 'Tableau de bord',
+    this.subtitle = 'Gérez vos ventes facilement',
+    this.actions,
   });
 
   @override
@@ -17,43 +17,56 @@ class HeaderSection extends StatelessWidget {
     return Row(
       mainAxisAlignment: MainAxisAlignment.spaceBetween,
       children: [
-        const Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(
-              'Tableau de bord',
-              style: TextStyle(
-                fontSize: 24,
-                fontWeight: FontWeight.bold,
-                color: AppColors.primaryTextColor,
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                title,
+                style:  TextStyle(
+                  fontSize: 24,
+                  fontWeight: FontWeight.bold,
+                  color: AppColors.primaryTextColor,
+                ),
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
               ),
-            ),
-            SizedBox(height: 4),
-            Text(
-              'Gérez vos ventes facilement',
-              style: TextStyle(fontSize: 14, color: AppColors.secondaryTextColor),
-            ),
-          ],
+              const SizedBox(height: 4),
+              Text(
+                subtitle,
+                style:  TextStyle(fontSize: 14, color: AppColors.secondaryTextColor),
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+              ),
+            ],
+          ),
         ),
-        Row(
-          children: [
-            _ActionIconButton(icon: Icons.paid_outlined, onPressed: onPaidPressed),
-            const SizedBox(width: 8),
-            _ActionIconButton(icon: Icons.contact_phone_outlined, onPressed: onContactPressed),
-            const SizedBox(width: 8),
-            _ActionIconButton(icon: Icons.refresh, onPressed: onRefreshPressed),
-          ],
-        ),
+        if (actions != null && actions!.isNotEmpty)
+          Row(
+            children: actions!.map((action) => Padding(
+              padding: const EdgeInsets.only(left: 8.0),
+              child: _ActionIconButton(icon: action.icon, onPressed: action.onPressed, color: action.color),
+            )).toList(),
+          ),
       ],
     );
   }
 }
 
+class HeaderAction {
+  final IconData icon;
+  final VoidCallback onPressed;
+  final Color? color;
+
+  HeaderAction({required this.icon, required this.onPressed, this.color});
+}
+
 class _ActionIconButton extends StatelessWidget {
   final IconData icon;
   final VoidCallback onPressed;
+  final Color? color;
 
-  const _ActionIconButton({required this.icon, required this.onPressed});
+  const _ActionIconButton({required this.icon, required this.onPressed, this.color});
 
   @override
   Widget build(BuildContext context) {
@@ -70,7 +83,7 @@ class _ActionIconButton extends StatelessWidget {
         ],
       ),
       child: IconButton(
-        icon: Icon(icon, color: AppColors.secondaryTextColor),
+        icon: Icon(icon, color: color ?? AppColors.secondaryTextColor),
         onPressed: onPressed,
       ),
     );

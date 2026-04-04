@@ -28,7 +28,7 @@ class SearchBarSection extends StatelessWidget {
             child: TextField(
               controller: controller,
               onChanged: onChanged,
-              decoration: const InputDecoration(
+              decoration:  InputDecoration(
                 hintText: 'Rechercher un produit...',
                 hintStyle: TextStyle(color: AppColors.secondaryTextColor),
                 prefixIcon: Icon(Icons.search, color: AppColors.accentColor),

@@ -1,8 +1,9 @@
-import 'package:animated_custom_dropdown/custom_dropdown.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
-import 'package:gest_stock/newVersion/magaziner/dropStyle.dart';
 import 'package:intl/intl.dart';
+import '../vendeur/constants.dart';
+import '../vendeur/widgets/header_section.dart';
+import 'dropStyle.dart';
 
 class OrderForm extends StatefulWidget {
   @override
@@ -11,141 +12,31 @@ class OrderForm extends StatefulWidget {
 
 class _OrderFormState extends State<OrderForm> {
   final _formKey = GlobalKey<FormState>();
-  List<Map<String, dynamic>> _productNames = []; // Liste des noms de produits
-  String? _selectedProductId; // Produit sélectionné
+  List<Map<String, dynamic>> _productNames = [];
+  String? _selectedProductId;
   List<Map<String, dynamic>> _items = [];
   int _itemQuantity = 1;
-
+  bool _isLoading = false;
   List<Map<String, dynamic>> _suspendedOrders = [];
+  
+  final TextEditingController _searchController = TextEditingController();
+  String _searchQuery = "";
+
   @override
   void initState() {
     super.initState();
     _fetchProducts();
   }
 
-  TextEditingController _searchController = TextEditingController();
-  String _searchQuery = "";
-  bool isLoading = false; // Indicateur de chargement
-
-  void _showProductSelection(BuildContext context) {
-    showModalBottomSheet(
-      context: context,
-      isScrollControlled: true,
-      builder: (BuildContext context) {
-        return StatefulBuilder(
-          builder: (context, setModalState) {
-            return Padding(
-              padding: const EdgeInsets.fromLTRB(5, 20, 5, 2),
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  // Champ de recherche
-                  TextField(
-                    controller: _searchController,
-                    decoration: InputDecoration(
-                      labelText: 'Rechercher un produit',
-                      prefixIcon: Icon(Icons.search),
-                      border: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(10)),
-                    ),
-                    onChanged: (value) {
-                      setModalState(() {
-                        _searchQuery = value.toLowerCase();
-                      });
-                    },
-                  ),
-                  SizedBox(height: 10),
-
-                  // Liste des produits filtrés
-                  Expanded(
-                    child: ListView(
-                      children: _productNames
-                          .where((product) =>
-                              product['nom']
-                                  .toLowerCase()
-                                  .contains(_searchQuery) ||
-                              product['gamme']
-                                  .toLowerCase()
-                                  .contains(_searchQuery))
-                          .map((product) {
-                        return ListTile(
-                          onTap: () {
-                            setState(() {
-                              _selectedProductId = product['id'];
-                            });
-                            Navigator.pop(context);
-                          },
-                          leading: CircleAvatar(
-                            radius: 25,
-                            backgroundImage: product['imageUrl'] != null &&
-                                    product['imageUrl'].isNotEmpty
-                                ? NetworkImage(product['imageUrl'])
-                                : AssetImage('assets/images/logo.png')
-                                    as ImageProvider,
-                            backgroundColor: Colors.grey[200],
-                          ),
-                          title: Row(
-                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                            children: [
-                              Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  Text(
-                                    product['gamme'],
-                                    style: TextStyle(
-                                      color: Colors.blue,
-                                      fontWeight: FontWeight.bold,
-                                      fontSize: 12,
-                                    ),
-                                  ),
-                                  Text(
-                                    product['nom'],
-                                    overflow: TextOverflow.ellipsis,
-                                    style: TextStyle(fontSize: 12),
-                                  ),
-                                ],
-                              ),
-                              SizedBox(width: 5),
-                              Column(
-                                children: [
-                                  Text(
-                                    product['type'] ?? '',
-                                    style: TextStyle(
-                                      fontSize: 12,
-                                      color: Colors.blue,
-                                      fontWeight: FontWeight.bold,
-                                    ),
-                                  ),
-                                  Text(
-                                    product['poids'] ?? '',
-                                    style: TextStyle(
-                                      fontSize: 12,
-                                      color: Colors.grey,
-                                      fontWeight: FontWeight.bold,
-                                    ),
-                                  ),
-                                ],
-                              ),
-                            ],
-                          ),
-                        );
-                      }).toList(),
-                    ),
-                  ),
-                ],
-              ),
-            );
-          },
-        );
-      },
-    );
+  @override
+  void dispose() {
+    _searchController.dispose();
+    super.dispose();
   }
 
-  /// Récupération et tri des produits (par gamme puis par nom)
   Future<void> _fetchProducts() async {
     try {
-      final snapshot =
-          await FirebaseFirestore.instance.collection('produits').get();
+      final snapshot = await FirebaseFirestore.instance.collection('produits').get();
       final products = snapshot.docs.map((doc) {
         return {
           'id': doc.id,
@@ -158,7 +49,6 @@ class _OrderFormState extends State<OrderForm> {
         };
       }).toList();
 
-      // **Trier d'abord par gamme, puis par nom**
       products.sort((a, b) {
         int gammeCompare = a['gamme'].compareTo(b['gamme']);
         if (gammeCompare != 0) return gammeCompare;
@@ -170,404 +60,377 @@ class _OrderFormState extends State<OrderForm> {
       });
     } catch (e) {
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-            content: Text(
-                'Erreur lors du chargement des produits : ${e.toString()}')),
+        SnackBar(content: Text('Erreur: ${e.toString()}'), backgroundColor: AppColors.criticalColor),
       );
     }
   }
 
-  void _addItem() {
-    if (_formKey.currentState!.validate()) {
-      if (_selectedProductId == null) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Veuillez sélectionner un produit')),
-        );
-        return;
-      }
-
-      final selectedProduct =
-          _productNames.firstWhere((prod) => prod['id'] == _selectedProductId);
-
-      setState(() {
-        _items.add({
-          'id': '${selectedProduct['gamme']}_${_selectedProductId}',
-          'name': selectedProduct['nom'],
-          'quantity': _itemQuantity,
-          'code_barre': selectedProduct['code_barre'],
-          'gamme': selectedProduct['gamme'],
-          'type': selectedProduct['type'],
-          'poids': selectedProduct['poids'],
-        });
-        _selectedProductId = null;
-        _itemQuantity = 1;
-      });
-
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-            content: Text(
-                'Article ajouté : $_itemQuantity x ${selectedProduct['nom']}')),
-      );
-    }
-  }
-
-  Future<void> _saveOrderToFirestore() async {
-    setState(() {
-      isLoading = true; // Activer le loader
-    });
-    try {
-      if (_items.isEmpty) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Ajoutez au moins un article à la commande.')),
-        );
-        return;
-      }
-
-      // Obtenir le nombre total de commandes existantes pour incrémenter le numéro
-      final snapshot =
-          await FirebaseFirestore.instance.collection('commandes').get();
-      int orderNumber = snapshot.size + 1; // Le numéro de la commande
-
-      // Obtenir la date au format yyyyMMdd
-      String formattedDate = DateFormat('yyyyMMdd').format(DateTime.now());
-
-      // Générer un identifiant personnalisé basé sur le numéro de commande et le timestamp
-      String orderId = 'CMD-$orderNumber-$formattedDate';
-
-      // Calcul du nombre total d'articles
-      int totalQuantity =
-          _items.fold(0, (sum, item) => sum + (item['quantity'] as int));
-
-      await FirebaseFirestore.instance
-          .collection('commandes')
-          .doc(orderId)
-          .set({
-        'id': orderId,
-        'articles': _items,
-        'totalArticles': totalQuantity, // Ajout du nombre total d'articles
-        'date': Timestamp.now(),
-        'statut': 'en cours', // Statut initial de la commande
-      });
-
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Commande enregistrée avec succès!')),
-      );
-
-      setState(() {
-        _items.clear();
-      });
-    } catch (e) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-            content: Text('Erreur lors de l\'enregistrement: ${e.toString()}')),
-      );
-    }finally {
-      setState(() {
-        isLoading = false; // Désactiver le loader après traitement
-      });
-    }
-  }
-
- /// **Suspendre la commande en cours**
-  Future<void> _suspendreCommande() async {
-    try {
-      if (_items.isEmpty) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Aucun article à suspendre.')),
-        );
-        return;
-      }
-
-      String orderId = 'SUSP-${DateTime.now().millisecondsSinceEpoch}';
-
-      await FirebaseFirestore.instance
-          .collection('commandes')
-          .doc(orderId)
-          .set({
-        'id': orderId,
-        'articles': _items,
-        'totalArticles':
-            _items.fold(0, (sum, item) => sum + (item['quantity'] as int)),
-        'date': Timestamp.now(),
-        'statut': 'suspendue',
-      });
-
-      setState(() {
-        _items.clear();
-      });
-
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Commande suspendue avec succès.')),
-      );
-    } catch (e) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-            content: Text('Erreur lors de la suspension : ${e.toString()}')),
-      );
-    }
-  }
-
-  /// **Récupérer les commandes suspendues**
-  Future<void> _fetchSuspendedOrders() async {
-    try {
-      final snapshot = await FirebaseFirestore.instance
-          .collection('commandes')
-          .where('statut', isEqualTo: 'suspendue')
-          .get();
-
-      setState(() {
-        _suspendedOrders = snapshot.docs.map((doc) {
-          return {
-            'id': doc.id,
-            'articles': List<Map<String, dynamic>>.from(doc['articles']),
-            'totalArticles': doc['totalArticles'],
-            'date': (doc['date'] as Timestamp).toDate(),
-          };
-        }).toList();
-      });
-    } catch (e) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-            content: Text(
-                'Erreur lors du chargement des commandes suspendues : ${e.toString()}')),
-      );
-    }
-  }
-
-  /// **Reprendre une commande suspendue**
-  void _resumeOrder(Map<String, dynamic> order) {
-    setState(() {
-      _items = List.from(order['articles']);
-    });
-
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text('Commande reprise avec succès !')),
-    );
-  }
-
-  /// **Annuler une commande suspendue**
-  Future<void> _cancelSuspendedOrder(String orderId) async {
-    try {
-      await FirebaseFirestore.instance
-          .collection('commandes')
-          .doc(orderId)
-          .delete();
-
-      setState(() {
-        _suspendedOrders.removeWhere((order) => order['id'] == orderId);
-      });
-
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Commande annulée avec succès.')),
-      );
-    } catch (e) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-            content: Text('Erreur lors de l\'annulation : ${e.toString()}')),
-      );
-    }
-  }
-
-  void _showSuspendedOrders(BuildContext context) async {
-    await _fetchSuspendedOrders(); // Récupérer les commandes suspendues avant d'afficher
-
+  void _showProductSelection() {
     showModalBottomSheet(
       context: context,
       isScrollControlled: true,
-      builder: (context) {
-        return Container(
-          padding: EdgeInsets.all(16),
-          height: MediaQuery.of(context).size.height * 0.6, // 60% de l'écran
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Text(
-                'Commandes suspendues',
-                style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
+      backgroundColor: Colors.transparent,
+      builder: (BuildContext context) {
+        return StatefulBuilder(
+          builder: (context, setModalState) {
+            final filtered = _productNames.where((p) =>
+                p['nom'].toLowerCase().contains(_searchQuery) ||
+                p['gamme'].toLowerCase().contains(_searchQuery)).toList();
+
+            return Container(
+              height: MediaQuery.of(context).size.height * 0.8,
+              decoration:  BoxDecoration(
+                color: AppColors.backgroundColor,
+                borderRadius: BorderRadius.vertical(top: Radius.circular(25)),
               ),
-              SizedBox(height: 10),
-              Expanded(
-                child: _suspendedOrders.isEmpty
-                    ? Center(child: Text('Aucune commande suspendue.'))
-                    : ListView.builder(
-                        itemCount: _suspendedOrders.length,
-                        itemBuilder: (context, index) {
-                          final order = _suspendedOrders[index];
-                          return Card(
-                            margin: EdgeInsets.symmetric(vertical: 6),
-                            child: ListTile(
-                              title: Text('Commande ${order['id']}'),
-                              subtitle: Text(
-                                  'Total articles: ${order['totalArticles']}'),
-                              trailing: Row(
-                                mainAxisSize: MainAxisSize.min,
-                                children: [
-                                  IconButton(
-                                    icon: Icon(Icons.play_arrow,
-                                        color: Colors.green),
-                                    tooltip: 'Reprendre',
-                                    onPressed: () {
-                                      _resumeOrder(order);
-                                      Navigator.pop(
-                                          context); // Fermer le modal après action
-                                    },
-                                  ),
-                                  IconButton(
-                                    icon: Icon(Icons.delete, color: Colors.red),
-                                    tooltip: 'Annuler',
-                                    onPressed: () {
-                                      _cancelSuspendedOrder(order['id']);
-                                      Navigator.pop(
-                                          context); // Fermer le modal après action
-                                    },
-                                  ),
-                                ],
-                              ),
-                            ),
-                          );
-                        },
+              child: Column(
+                children: [
+                  const SizedBox(height: 12),
+                  Container(width: 40, height: 4, decoration: BoxDecoration(color: Colors.grey.shade300, borderRadius: BorderRadius.circular(2))),
+                  const SizedBox(height: 20),
+                  Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 20),
+                    child: TextField(
+                      controller: _searchController,
+                      onChanged: (v) => setModalState(() => _searchQuery = v.toLowerCase()),
+                      decoration: InputDecoration(
+                        hintText: 'Rechercher un produit...',
+                        prefixIcon:  Icon(Icons.search, color: AppColors.accentColor),
+                        filled: true,
+                        fillColor: AppColors.cardColor,
+                        border: OutlineInputBorder(borderRadius: BorderRadius.circular(15), borderSide: BorderSide.none),
                       ),
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+                  Expanded(
+                    child: ListView.builder(
+                      padding: const EdgeInsets.symmetric(horizontal: 10),
+                      itemCount: filtered.length,
+                      itemBuilder: (context, index) {
+                        final product = filtered[index];
+                        return ListTile(
+                          onTap: () {
+                            setState(() => _selectedProductId = product['id']);
+                            Navigator.pop(context);
+                          },
+                          leading: Container(
+                            width: 50, height: 50,
+                            decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(10)),
+                            child: product['imageUrl'] != null && product['imageUrl'].isNotEmpty
+                                ? ClipRRect(borderRadius: BorderRadius.circular(10), child: Image.network(product['imageUrl'], fit: BoxFit.cover))
+                                :  Icon(Icons.inventory_2_outlined, color: AppColors.accentColor),
+                          ),
+                          title: Text(product['nom'], style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14)),
+                          subtitle: Text(product['gamme'], style:  TextStyle(fontSize: 12, color: AppColors.secondaryTextColor)),
+                          trailing: Text(product['type'] ?? '', style:  TextStyle(color: AppColors.accentColor, fontWeight: FontWeight.bold, fontSize: 12)),
+                        );
+                      },
+                    ),
+                  ),
+                ],
               ),
-            ],
-          ),
+            );
+          },
         );
       },
+    );
+  }
+
+  void _addItem() {
+    if (_selectedProductId == null) {
+      ScaffoldMessenger.of(context).showSnackBar( SnackBar(content: Text('Sélectionnez un produit'), backgroundColor: AppColors.alertColor));
+      return;
+    }
+
+    final selectedProduct = _productNames.firstWhere((prod) => prod['id'] == _selectedProductId);
+    setState(() {
+      _items.add({
+        'id': '${selectedProduct['gamme']}_${_selectedProductId}',
+        'name': selectedProduct['nom'],
+        'quantity': _itemQuantity,
+        'code_barre': selectedProduct['code_barre'],
+        'gamme': selectedProduct['gamme'],
+        'type': selectedProduct['type'],
+        'poids': selectedProduct['poids'],
+      });
+      _selectedProductId = null;
+      _itemQuantity = 1;
+    });
+  }
+
+  Future<void> _saveOrderToFirestore() async {
+    if (_items.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar( SnackBar(content: Text('Ajoutez des articles'), backgroundColor: AppColors.alertColor));
+      return;
+    }
+
+    setState(() => _isLoading = true);
+    try {
+      final snapshot = await FirebaseFirestore.instance.collection('commandes').get();
+      int orderNumber = snapshot.size + 1;
+      String formattedDate = DateFormat('yyyyMMdd').format(DateTime.now());
+      String orderId = 'CMD-$orderNumber-$formattedDate';
+
+      int totalQuantity = _items.fold(0, (sum, item) => sum + (item['quantity'] as int));
+
+      await FirebaseFirestore.instance.collection('commandes').doc(orderId).set({
+        'id': orderId,
+        'articles': _items,
+        'totalArticles': totalQuantity,
+        'date': Timestamp.now(),
+        'statut': 'en cours',
+      });
+
+      ScaffoldMessenger.of(context).showSnackBar( SnackBar(content: Text('Commande enregistrée !'), backgroundColor: AppColors.priceColor));
+      setState(() => _items.clear());
+    } catch (e) {
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Erreur: $e'), backgroundColor: AppColors.criticalColor));
+    } finally {
+      setState(() => _isLoading = false);
+    }
+  }
+
+  Future<void> _suspendreCommande() async {
+    if (_items.isEmpty) return;
+    try {
+      String orderId = 'SUSP-${DateTime.now().millisecondsSinceEpoch}';
+      await FirebaseFirestore.instance.collection('commandes').doc(orderId).set({
+        'id': orderId,
+        'articles': _items,
+        'totalArticles': _items.fold(0, (sum, item) => sum + (item['quantity'] as int)),
+        'date': Timestamp.now(),
+        'statut': 'suspendue',
+      });
+      setState(() => _items.clear());
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Commande suspendue'), backgroundColor: Colors.orange));
+    } catch (e) {
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Erreur: $e')));
+    }
+  }
+
+  void _showSuspendedOrders() async {
+    setState(() => _isLoading = true);
+    try {
+      final snapshot = await FirebaseFirestore.instance.collection('commandes').where('statut', isEqualTo: 'suspendue').get();
+      _suspendedOrders = snapshot.docs.map((doc) => {
+        'id': doc.id,
+        'articles': List<Map<String, dynamic>>.from(doc['articles']),
+        'totalArticles': doc['totalArticles'],
+        'date': (doc['date'] as Timestamp).toDate(),
+      }).toList();
+    } catch (e) {} finally { setState(() => _isLoading = false); }
+
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: Colors.transparent,
+      builder: (context) => Container(
+        padding: const EdgeInsets.all(20),
+        decoration:  BoxDecoration(color: AppColors.backgroundColor, borderRadius: BorderRadius.vertical(top: Radius.circular(25))),
+        child: Column(
+          children: [
+            const Text('Commandes suspendues', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+            const SizedBox(height: 20),
+            Expanded(
+              child: _suspendedOrders.isEmpty 
+                  ? const Center(child: Text('Aucune commande suspendue'))
+                  : ListView.builder(
+                      itemCount: _suspendedOrders.length,
+                      itemBuilder: (context, index) {
+                        final order = _suspendedOrders[index];
+                        return Card(
+                          elevation: 0,
+                          margin: const EdgeInsets.only(bottom: 10),
+                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(15), side: BorderSide(color: Colors.grey.shade200)),
+                          child: ListTile(
+                            title: Text('ID: ${order['id']}', style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13)),
+                            subtitle: Text('Articles: ${order['totalArticles']}', style: const TextStyle(fontSize: 12)),
+                            trailing: IconButton(icon: const Icon(Icons.play_circle_fill, color: Colors.green), onPressed: () {
+                              setState(() => _items = List.from(order['articles']));
+                              Navigator.pop(context);
+                            }),
+                          ),
+                        );
+                      }
+                    ),
+            ),
+          ],
+        ),
+      ),
     );
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(
-        title: Text('Créer une commande'),
-        backgroundColor: Colors.blue.shade800, // Bleu foncé pour un aspect pro
-        centerTitle: true,
-        elevation: 4,
-         actions: [
-          IconButton(
-            icon: Icon(Icons.pause_circle_outline, color: Colors.white),
-            tooltip: 'Commandes suspendues',
-            onPressed: () => _showSuspendedOrders(context),
-          ),
-        ],
+      backgroundColor: AppColors.backgroundColor,
+      body: SafeArea(
+        child: Column(
+          children: [
+            Padding(
+              padding: const EdgeInsets.all(20.0),
+              child: HeaderSection(
+                title: 'Nouvelle Commande',
+                subtitle: 'Assemblez les articles pour l\'entrée',
+                actions: [
+                  HeaderAction(icon: Icons.pause_circle_outline, onPressed: _showSuspendedOrders),
+                ],
+              ),
+            ),
+            
+            Expanded(
+              child: SingleChildScrollView(
+                padding: const EdgeInsets.symmetric(horizontal: 20),
+                child: Column(
+                  children: [
+                    _buildSelectionForm(),
+                    const SizedBox(height: 24),
+                    _buildItemList(),
+                  ],
+                ),
+              ),
+            ),
+            
+            _buildBottomActions(),
+          ],
+        ),
       ),
-      body: Padding(
-        padding: EdgeInsets.all(16.0),
-        child: Form(
-          key: _formKey,
-          child: Column(
-            children: <Widget>[
-              InkWell(
-                onTap: () => _showProductSelection(context),
-                child: InputDecorator(
-                  decoration: InputDecoration(
-                    labelText: "Sélectionnez un produit",
-                    border: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(10)),
+    );
+  }
+
+  Widget _buildSelectionForm() {
+    return Container(
+      padding: const EdgeInsets.all(20),
+      decoration: BoxDecoration(color: AppColors.cardColor, borderRadius: BorderRadius.circular(20), border: Border.all(color: Colors.blue.withOpacity(0.05))),
+      child: Column(
+        children: [
+          InkWell(
+            onTap: _showProductSelection,
+            child: Container(
+              padding: const EdgeInsets.all(16),
+              decoration: BoxDecoration(color: AppColors.backgroundColor, borderRadius: BorderRadius.circular(12), border: Border.all(color: Colors.grey.shade200)),
+              child: Row(
+                children: [
+                   Icon(Icons.search, color: AppColors.accentColor),
+                  const SizedBox(width: 12),
+                  Text(
+                    _selectedProductId != null 
+                        ? _productNames.firstWhere((p) => p['id'] == _selectedProductId)['nom']
+                        : "Choisir un produit...",
+                    style: TextStyle(color: _selectedProductId != null ? AppColors.primaryTextColor : AppColors.secondaryTextColor),
                   ),
-                  child: Text(
-                    _selectedProductId != null
-                        ? _productNames.firstWhere(
-                            (p) => p['id'] == _selectedProductId)['nom']
-                        : "Aucun produit sélectionné",
-                    style: TextStyle(fontSize: 16),
+                  const Spacer(),
+                   Icon(Icons.arrow_drop_down, color: AppColors.secondaryTextColor),
+                ],
+              ),
+            ),
+          ),
+          const SizedBox(height: 16),
+          Row(
+            children: [
+              Expanded(
+                child: TextField(
+                  keyboardType: TextInputType.number,
+                  onChanged: (v) => _itemQuantity = int.tryParse(v) ?? 1,
+                  decoration: InputDecoration(
+                    labelText: 'Quantité',
+                    filled: true,
+                    fillColor: AppColors.backgroundColor,
+                    border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide.none),
                   ),
                 ),
               ),
-              SizedBox(height: 16),
-              TextFormField(
-                decoration: InputDecoration(
-                    labelText: 'Quantité', border: OutlineInputBorder()),
-                keyboardType: TextInputType.number,
-                initialValue: _itemQuantity.toString(),
-                validator: (value) {
-                  if (value == null || value.isEmpty) {
-                    return 'Veuillez entrer une quantité';
-                  }
-                  if (int.tryParse(value) == null || int.parse(value) <= 0) {
-                    return 'Veuillez entrer une quantité valide';
-                  }
-                  return null;
-                },
-                onSaved: (value) {
-                  _itemQuantity = int.parse(value!);
-                },
-                onChanged: (value) {
-                  if (int.tryParse(value) != null) {
-                    _itemQuantity = int.parse(value);
-                  }
-                },
-              ),
-              const SizedBox(height: 20),
+              const SizedBox(width: 12),
               ElevatedButton(
                 onPressed: _addItem,
-                child: Text('Ajouter un article'),
-              ),
-              const SizedBox(height: 20),
-              Expanded(
-                child: ListView.builder(
-                  itemCount: _items.length,
-                  itemBuilder: (context, index) {
-                    return ListTile(
-                      leading: Icon(Icons.shopping_cart),
-                      title: Text('${_items[index]['name']}'),
-                      subtitle: Text('Quantité: ${_items[index]['quantity']}'),
-                      trailing: IconButton(
-                        icon: Icon(Icons.delete, color: Colors.red),
-                        onPressed: () {
-                          setState(() {
-                            _items.removeAt(index);
-                          });
-                        },
-                      ),
-                    );
-                  },
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: AppColors.accentColor,
+                  minimumSize: const Size(60, 56),
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                 ),
-              ),
-              Row(
-                children: [
-                  ElevatedButton(
-      onPressed: isLoading ? null : _saveOrderToFirestore, // Désactiver si chargement
-      style: ElevatedButton.styleFrom(
-        backgroundColor: Colors.green,
-        foregroundColor: Colors.white,
-      ),
-      child: isLoading
-          ? SizedBox(
-              width: 20,
-              height: 20,
-              child: CircularProgressIndicator(
-                valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
-                strokeWidth: 2,
-              ),
-            )
-          : Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Icon(Icons.save),
-                SizedBox(width: 8),
-                Text('Passer la commande', style: TextStyle(fontSize: 10)),
-              ],
-            ),
-    ),
-  
-                   ElevatedButton.icon(
-                    onPressed: _suspendreCommande,
-                    icon: Icon(Icons.pause),
-                    label: Text(
-                      'Suspendre la vente',
-                      style: TextStyle(fontSize: 10),
-                    ),
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: Colors.orange,
-                      foregroundColor: Colors.white,
-                    ),
-                  ),
-                ],
+                child: const Icon(Icons.add, color: Colors.white),
               ),
             ],
           ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildItemList() {
+    if (_items.isEmpty) {
+      return  Column(
+        children: [
+          SizedBox(height: 40),
+          Icon(Icons.shopping_basket_outlined, size: 64, color: Colors.grey),
+          SizedBox(height: 12),
+          Text('Aucun article ajouté', style: TextStyle(color: AppColors.secondaryTextColor)),
+        ],
+      );
+    }
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const Text('Articles sélectionnés', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
+        const SizedBox(height: 12),
+        ListView.builder(
+          shrinkWrap: true,
+          physics: const NeverScrollableScrollPhysics(),
+          itemCount: _items.length,
+          itemBuilder: (context, index) {
+            final item = _items[index];
+            return Container(
+              margin: const EdgeInsets.only(bottom: 10),
+              decoration: BoxDecoration(color: AppColors.cardColor, borderRadius: BorderRadius.circular(15)),
+              child: ListTile(
+                title: Text(item['name'], style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14)),
+                subtitle: Text('Gamme: ${item['gamme']} • Qté: ${item['quantity']}', style: const TextStyle(fontSize: 12)),
+                trailing: IconButton(icon:  Icon(Icons.delete_outline, color: AppColors.criticalColor), onPressed: () => setState(() => _items.removeAt(index))),
+              ),
+            );
+          },
         ),
+      ],
+    );
+  }
+
+  Widget _buildBottomActions() {
+    return Container(
+      padding: const EdgeInsets.all(20),
+      decoration: BoxDecoration(color: AppColors.cardColor, boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.05), blurRadius: 10)]),
+      child: Row(
+        children: [
+          Expanded(
+            child: OutlinedButton(
+              onPressed: _items.isEmpty ? null : _suspendreCommande,
+              style: OutlinedButton.styleFrom(
+                minimumSize: const Size(0, 56),
+                side: const BorderSide(color: Colors.orange),
+                foregroundColor: Colors.orange,
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+              ),
+              child: const Text('SUSPENDRE', style: TextStyle(fontWeight: FontWeight.bold)),
+            ),
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            flex: 2,
+            child: ElevatedButton(
+              onPressed: _isLoading || _items.isEmpty ? null : _saveOrderToFirestore,
+              style: ElevatedButton.styleFrom(
+                backgroundColor: AppColors.priceColor,
+                foregroundColor: Colors.white,
+                minimumSize: const Size(0, 56),
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                elevation: 0,
+              ),
+              child: _isLoading 
+                  ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2))
+                  : const Text('VALIDER LA COMMANDE', style: TextStyle(fontWeight: FontWeight.bold)),
+            ),
+          ),
+        ],
       ),
     );
   }

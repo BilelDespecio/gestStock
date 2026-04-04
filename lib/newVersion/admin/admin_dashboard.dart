@@ -1,8 +1,13 @@
-import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
-import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:gest_stock/newVersion/detailProduct.dart';
+import 'package:gest_stock/newVersion/vendeur/constants.dart';
+import 'package:gest_stock/newVersion/vendeur/services/produit_service.dart';
+import 'package:gest_stock/newVersion/vendeur/widgets/header_section.dart';
+import 'package:gest_stock/newVersion/vendeur/widgets/product_grid.dart';
+import 'package:gest_stock/newVersion/vendeur/widgets/quick_actions_section.dart';
+import 'package:gest_stock/newVersion/vendeur/widgets/search_bar_section.dart';
 import 'package:mobile_scanner/mobile_scanner.dart';
+import 'package:gest_stock/newVersion/menu/app_menu_sheet.dart';
 
 class HomePageAdmin extends StatefulWidget {
   @override
@@ -10,82 +15,29 @@ class HomePageAdmin extends StatefulWidget {
 }
 
 class _HomePageAdminState extends State<HomePageAdmin> {
-  late Future<int> _productCountFuture;
-  late Stream<List<Map<String, dynamic>>> _productsStream;
+  final ProduitService _produitService = ProduitService();
+  final TextEditingController _searchController = TextEditingController();
+  
   List<Map<String, dynamic>> _allProducts = [];
   List<Map<String, dynamic>> _filteredProducts = [];
-  TextEditingController _searchController = TextEditingController();
+  String _searchQuery = "";
 
   @override
   void initState() {
     super.initState();
-    _loadData();
-  }
-
-  void _loadData() {
-    _getProductsStream().listen((products) {
-      setState(() {
-        _allProducts = products;
-        _filteredProducts =
-            List.from(_allProducts); // Initialiser avec tous les produits
-      });
-    });
-  }
-
-  Stream<List<Map<String, dynamic>>> _getProductsStream() {
-    return FirebaseFirestore.instance
-        .collection('produits')
-        .snapshots()
-        .asyncMap((produitSnapshot) async {
-      final stockSnapshot =
-          await FirebaseFirestore.instance.collection('stock').get();
-
-      Map<String, dynamic> stockMap = {
-        for (var stock in stockSnapshot.docs) stock['nom']: stock.data()
-      };
-
-      List<Map<String, dynamic>> products = produitSnapshot.docs.map((prodDoc) {
-        var produitData = prodDoc.data();
-        String produitNom = produitData['nom'];
-
-        var stockData = stockMap[produitNom];
-        int quantiteDisponible = stockData?['quantiteDisponible'] ?? 0;
-        double prixVente = stockData?['pvp']?.toDouble() ?? 0.0;
-
-        return {
-          'id': prodDoc.id,
-          'gamme': produitData['gamme'],
-          'nom': produitNom,
-          'prixVente': prixVente,
-          'quantiteDisponible': quantiteDisponible,
-          'image': produitData['imageUrl'] ?? '',
-          'seuil_critique': produitData['seuil_critique'] ?? 0,
-          'seuil_alerte': produitData['seuil_alerte'] ?? 0,
-          'code_barre': produitData['code_barre'] ?? '',
-          'type': produitData['type'] ?? '',
-          'poids': produitData['poids'] ?? 0,
-          'description': produitData['description'] ?? '',
-          'prixDecide': produitData['prixDecide'] ?? null,
-          'poidsProduit': produitData['quantite'] ?? null,
-          'unite': produitData['unite'] ?? '',
-        };
-      }).toList();
-
-      return products;
-    });
   }
 
   void _filterProducts(String query) {
     setState(() {
-      if (query.isEmpty) {
+      _searchQuery = query.toLowerCase();
+      if (_searchQuery.isEmpty) {
         _filteredProducts = List.from(_allProducts);
       } else {
-        _filteredProducts = _allProducts
-            .where((product) =>
-                product['nom'].toLowerCase().contains(query.toLowerCase()) ||
-                product['gamme'].toLowerCase().contains(query.toLowerCase()) ||
-                product['type'].toLowerCase().contains(query.toLowerCase()))
-            .toList();
+        _filteredProducts = _allProducts.where((product) {
+          return product['nom'].toLowerCase().contains(_searchQuery) ||
+                 product['gamme'].toLowerCase().contains(_searchQuery) ||
+                 product['type'].toLowerCase().contains(_searchQuery);
+        }).toList();
       }
     });
   }
@@ -94,23 +46,18 @@ class _HomePageAdminState extends State<HomePageAdmin> {
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
-        title: Text("Scanner un Code-Barres"),
+        title: const Text("Scanner un Code-Barres"),
         content: SizedBox(
           height: 300,
           child: MobileScanner(
             onDetect: (barcode) {
-              if (barcode.barcodes.isNotEmpty &&
-                  barcode.barcodes.first.rawValue != null) {
+              if (barcode.barcodes.isNotEmpty && barcode.barcodes.first.rawValue != null) {
                 String scannedCode = barcode.barcodes.first.rawValue!;
-                print("Code-barres détecté : $scannedCode");
-
                 setState(() {
-                  _filteredProducts = _allProducts
-                      .where((product) => product['code_barre'] == scannedCode)
-                      .toList();
+                  _searchController.text = scannedCode;
+                  _filterProducts(scannedCode);
                 });
-
-                Navigator.pop(context); // Ferme le scanner après détection
+                Navigator.pop(context);
               }
             },
           ),
@@ -122,330 +69,109 @@ class _HomePageAdminState extends State<HomePageAdmin> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(
-        title: const Text('Admin Dashbord', style: TextStyle(fontSize: 16)),
-        centerTitle: true,
-        actions: [
-          IconButton(
-            icon: Icon(Icons.add_shopping_cart_rounded,
-                size: 16, color: Colors.black),
-            onPressed: () {
-              Navigator.pushNamed(context, '/addProduct');
-            },
-            tooltip: "Ajouter un produit",
-          ),
-          IconButton(
-            icon: Icon(Icons.account_circle_outlined, size: 16),
-            onPressed: () {
-              Navigator.pushNamed(context, '/addAccount');
-            },
-            tooltip: "Ajouter utilisaeur",
-          ),
-          IconButton(
-            icon: Icon(Icons.bar_chart, size: 16),
-            onPressed: () {
-              Navigator.pushNamed(context, '/stats');
-            },
-            tooltip: "Statistiques",
-          ),
-          IconButton(
-            icon: const Icon(Icons.refresh, size: 16, color: Colors.black),
-            onPressed: () {
-              setState(() {
-                _loadData(); // Recharge les données
-              });
-              ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(content: Text('Données rechargées avec succès')),
-              );
-            },
-          ),
-        ],
-        backgroundColor: Colors.white, // Bleu foncé pour un aspect pro
-
-        elevation: 4,
-      ),
-      body: Padding(
-        padding: const EdgeInsets.all(16.0),
-        child: Column(
-          children: [
-            Row(
-              children: [
-                Expanded(
-                  child: Container(
-                    decoration: BoxDecoration(
-                      color: Colors.grey.shade200, // Fond gris clair
-                      borderRadius: BorderRadius.circular(12),
-                    ),
-                    child: TextField(
-                      controller: _searchController,
-                      decoration: InputDecoration(
-                        hintText: 'Rechercher un produit...',
-                        hintStyle: TextStyle(color: Colors.grey.shade600),
-                        border: InputBorder.none,
-                        prefixIcon:
-                            Icon(Icons.search, color: Colors.blueAccent),
-                        contentPadding:
-                            EdgeInsets.symmetric(vertical: 14, horizontal: 10),
-                      ),
-                      onChanged: _filterProducts,
-                    ),
-                  ),
-                ),
-                Container(
-                  decoration: BoxDecoration(
-                    color: Colors.blueAccent, // Couleur du bouton QR
-                    borderRadius: BorderRadius.circular(12),
-                  ),
-                  child: IconButton(
-                    icon: Icon(Icons.qr_code_scanner,
-                        color: Colors.white, size: 28),
-                    onPressed: _scanBarcode,
-                    tooltip: "Scanner un QR Code",
-                  ),
-                ),
-              ],
-            ),
-            const SizedBox(height: 10),
-            Expanded(
-              child: _filteredProducts.isEmpty
-                  ? const Center(child: Text('Aucun produit trouvé.'))
-                  : GridView.builder(
-                      padding: const EdgeInsets.all(8.0),
-                      gridDelegate:
-                          const SliverGridDelegateWithFixedCrossAxisCount(
-                        crossAxisCount: 2,
-                        crossAxisSpacing: 10.0,
-                        mainAxisSpacing: 10.0,
-                        childAspectRatio: 0.75,
-                      ),
-                      itemCount: _filteredProducts.length,
-                      itemBuilder: (context, index) {
-                        final produit = _filteredProducts[index];
-                        final id = produit['id'];
-                        final int quantite = produit['quantiteDisponible'];
-                        final double prix = produit['prixVente'];
-                        final String imageUrl = produit['image'] ?? '';
-                        print(
-                            'URL de l\'image : $imageUrl'); // Vérifier la valeur de l'URL
-                        final int seuilCritique = produit['seuil_critique'];
-                        final int seuilAlerte = produit['seuil_alerte'];
-                        // Vérifier si prixDecide est null ou non défini
-                        final int? prixDecide = produit['prixDecide'] != null
-                            ? (produit['prixDecide'])
-                            : null;
-
-
-                        final String? newPoids = produit['poidsProduit'] != null
-                            ? ('${produit['poidsProduit'].toInt()} ${produit['unite']}')
-                            : null;
-
-                        // Déterminer le message et la couleur du ruban
-                        String? rubanText;
-                        Color rubanColor = Colors.transparent;
-                        if (quantite <= seuilCritique) {
-                          rubanText = "Stock Critique";
-                          rubanColor = Colors.red;
-                        } else if (quantite <= seuilAlerte) {
-                          rubanText = "Stock Alerte";
-                          rubanColor = Colors.orange;
-                        }
-
-                        return GestureDetector(
-                          onTap: () {
-                            Navigator.push(
-                              context,
-                              MaterialPageRoute(
-                                builder: (context) =>
-                                    DetailProduitPage(produit: produit),
-                              ),
-                            );
+      backgroundColor: AppColors.backgroundColor,
+      body: SafeArea(
+        child: RefreshIndicator(
+          onRefresh: () async => setState(() {}),
+          child: CustomScrollView(
+            slivers: [
+              SliverPadding(
+                padding: const EdgeInsets.all(16.0),
+                sliver: SliverList(
+                  delegate: SliverChildListDelegate([
+                    HeaderSection(
+                      title: 'Administration',
+                      subtitle: 'Supervision globale du système',
+                      actions: [
+                        HeaderAction(
+                          icon: Icons.menu,
+                          onPressed: () {
+                            showAppMenuSheet(context);
                           },
-                          child: Stack(
-                            children: [
-                              Card(
-                                shape: RoundedRectangleBorder(
-                                  borderRadius: BorderRadius.circular(10.0),
-                                ),
-                                elevation: 5,
-                                child: Column(
-                                  crossAxisAlignment: CrossAxisAlignment.start,
-                                  children: [
-                                    if (imageUrl.isNotEmpty)
-                                      ClipRRect(
-                                        borderRadius: const BorderRadius.only(
-                                          topLeft: Radius.circular(10),
-                                          topRight: Radius.circular(10),
-                                        ),
-                                        child: CachedNetworkImage(
-                                          imageUrl: imageUrl,
-                                          height: 100,
-                                          width: double.infinity,
-                                          fit: BoxFit.cover,
-                                          placeholder: (context, url) =>
-                                              const Center(
-                                                  child:
-                                                      CircularProgressIndicator()),
-                                          errorWidget: (context, url, error) =>
-                                              const Icon(
-                                                  Icons.image_not_supported,
-                                                  size: 120),
-                                        ),
-                                      )
-                                    else
-                                      Container(
-                                        height: 100,
-                                        color: Colors.grey[200],
-                                        child: const Center(
-                                          child: Icon(Icons.image,
-                                              size: 60, color: Colors.grey),
-                                        ),
-                                      ),
-                                    Padding(
-                                      padding:
-                                          const EdgeInsets.fromLTRB(5, 0, 5, 0),
-                                      child: Text(
-                                        produit['gamme'] ?? 'Nom inconnu',
-                                        style: const TextStyle(
-                                            fontSize: 14,
-                                            fontWeight: FontWeight.bold,
-                                            color: Colors.blue),
-                                        overflow: TextOverflow.ellipsis,
-                                      ),
-                                    ),
-                                    Padding(
-                                      padding:
-                                          const EdgeInsets.fromLTRB(5, 0, 5, 0),
-                                      child: Text(
-                                        produit['nom'] ?? 'Nom inconnu',
-                                        style: const TextStyle(
-                                          fontSize: 14,
-                                          fontWeight: FontWeight.bold,
-                                        ),
-                                        overflow: TextOverflow.ellipsis,
-                                      ),
-                                    ),
-                                    Row(
-                                      children: [
-                                        Padding(
-                                          padding: const EdgeInsets.fromLTRB(
-                                              5, 0, 5, 0),
-                                          child: Text(
-                                            produit['type'] ?? 'Type',
-                                            style: const TextStyle(
-                                              fontSize: 10,
-                                            ),
-                                            overflow: TextOverflow.ellipsis,
-                                          ),
-                                        ),
-                                        Padding(
-                                          padding: const EdgeInsets.fromLTRB(
-                                              5, 0, 5, 0),
-                                          child: Text(
-                                            newPoids?.toString() ??
-                                                produit['poids'],
-                                            style: const TextStyle(
-                                              fontSize: 10,
-                                            ),
-                                            overflow: TextOverflow.ellipsis,
-                                          ),
-                                        ),
-                                      ],
-                                    ),
-                                    Padding(
-                                      padding: const EdgeInsets.symmetric(
-                                          horizontal: 5.0),
-                                      child: Text(
-                                        'Prix: ${prixDecide?.toInt() ?? prix.toInt()} FCFA', // Affiche prixDecide si dispo, sinon pvp
-                                        style: const TextStyle(
-                                            fontSize: 12, color: Colors.green),
-                                      ),
-                                    ),
-                                    Padding(
-                                      padding: const EdgeInsets.symmetric(
-                                          horizontal: 5.0),
-                                      child: Text(
-                                        'Quantité Stock: $quantite',
-                                        style: const TextStyle(fontSize: 12),
-                                      ),
-                                    ),
-                                  ],
-                                ),
-                              ),
-                              if (rubanText != null)
-                                Positioned(
-                                  right: 4,
-                                  top: 5,
-                                  child: Container(
-                                    padding: const EdgeInsets.symmetric(
-                                        horizontal: 8, vertical: 4),
-                                    decoration: BoxDecoration(
-                                      color: rubanColor,
-                                      borderRadius: const BorderRadius.only(
-                                        bottomLeft: Radius.circular(10),
-                                        topRight: Radius.circular(10),
-                                      ),
-                                    ),
-                                    child: Text(
-                                      rubanText,
-                                      style: const TextStyle(
-                                        color: Colors.white,
-                                        fontSize: 12,
-                                        fontWeight: FontWeight.bold,
-                                      ), //ligne 387
-                                    ),
-                                  ),
-                                ),
-                            ],
-                          ),
-                        );
-                      },
+                        ),
+                      ],
                     ),
-            ),
-          ],
+                    const SizedBox(height: 24),
+
+                    QuickActionsSection(
+                      actions: [
+                        QuickActionData(
+                          title: 'Produit', 
+                          icon: Icons.add_shopping_cart_rounded, 
+                          onTap: () => Navigator.pushNamed(context, '/addProduct'),
+                          color: AppColors.accentColor
+                        ),
+                        QuickActionData(
+                          title: 'Utilisateur', 
+                          icon: Icons.person_add_alt_1_outlined, 
+                          onTap: () => Navigator.pushNamed(context, '/addAccount'),
+                          color: Colors.indigo
+                        ),
+                        QuickActionData(
+                          title: 'Stats', 
+                          icon: Icons.analytics_outlined, 
+                          onTap: () => Navigator.pushNamed(context, '/stats'),
+                          color: AppColors.priceColor
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 24),
+
+                    SearchBarSection(
+                      controller: _searchController, 
+                      onChanged: _filterProducts, 
+                      onScanPressed: _scanBarcode
+                    ),
+                    const SizedBox(height: 24),
+
+                    /*const Text(
+                      'Aperçu de l\'Inventaire',
+                      style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: AppColors.primaryTextColor),
+                    ),*/
+                    const SizedBox(height: 16),
+                  ]),
+                ),
+              ),
+              
+              StreamBuilder<List<Map<String, dynamic>>>(
+                stream: _produitService.getProductsStream(isMagasin: true),
+                builder: (context, snapshot) {
+                  if (snapshot.connectionState == ConnectionState.waiting) {
+                    return SliverToBoxAdapter(
+                      child: Center(
+                          child: CircularProgressIndicator(
+                              color: AppColors.accentColor)),
+                    );
+                  }
+                  
+                  _allProducts = snapshot.data ?? [];
+                  if (_searchQuery.isEmpty) {
+                    _filteredProducts = List.from(_allProducts);
+                  } else {
+                    _filteredProducts = _allProducts.where((p) => 
+                      p['nom'].toLowerCase().contains(_searchQuery) ||
+                      p['gamme'].toLowerCase().contains(_searchQuery)
+                    ).toList();
+                  }
+
+                  return SliverPadding(
+                    padding: const EdgeInsets.symmetric(horizontal: 16),
+                    sliver: SliverProductGrid(
+                      products: _filteredProducts, 
+                      onProductTap: (product) {
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(builder: (_) => DetailProduitPage(produit: product))
+                        );
+                      }
+                    ),
+                  );
+                },
+              ),
+              const SliverToBoxAdapter(child: SizedBox(height: 100)),
+            ],
+          ),
         ),
-      ),
-    );
-  }
-}
-
-// Widget pour afficher une statistique
-class _StatCard extends StatelessWidget {
-  final String title;
-  final String value;
-  final Color color;
-
-  const _StatCard({
-    required this.title,
-    required this.value,
-    required this.color,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      width: 100,
-      height: 50,
-      decoration: BoxDecoration(
-        color: color.withOpacity(0.1),
-        borderRadius: BorderRadius.circular(10),
-        border: Border.all(color: color),
-      ),
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          Text(
-            value,
-            style: TextStyle(
-              fontSize: 14,
-              fontWeight: FontWeight.bold,
-              color: color,
-            ),
-          ),
-          Text(
-            title,
-            style: TextStyle(color: color),
-          ),
-        ],
       ),
     );
   }

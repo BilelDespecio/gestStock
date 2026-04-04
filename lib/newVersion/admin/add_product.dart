@@ -1,15 +1,16 @@
 import 'dart:io';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_storage/firebase_storage.dart';
 import 'package:flutter/material.dart';
 import 'package:gest_stock/newVersion/convertWebp.dart';
+import 'package:gest_stock/newVersion/vendeur/constants.dart';
+import 'package:gest_stock/newVersion/vendeur/widgets/header_section.dart';
 import 'package:image_cropper/image_cropper.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:mobile_scanner/mobile_scanner.dart';
-import 'package:supabase_flutter/supabase_flutter.dart';
 
 class AjouterProduitPage extends StatefulWidget {
-  final String?
-      produitId; // Si null, c'est un ajout, sinon c'est une modification.
+  final String? produitId; 
   AjouterProduitPage({this.produitId});
 
   @override
@@ -17,6 +18,8 @@ class AjouterProduitPage extends StatefulWidget {
 }
 
 class _AjouterProduitPageState extends State<AjouterProduitPage> {
+  final _formKey = GlobalKey<FormState>();
+  
   final TextEditingController nomController = TextEditingController();
   final TextEditingController prixController = TextEditingController();
   final TextEditingController quantiteController = TextEditingController();
@@ -28,35 +31,16 @@ class _AjouterProduitPageState extends State<AjouterProduitPage> {
   final TextEditingController marketPriceController = TextEditingController();
   final TextEditingController descriptionController = TextEditingController();
   final TextEditingController prixDecideController = TextEditingController();
-  String? _selectedUnite = 'pcs';// Pour stocker l'unité sélectionnée
-
-  final List<String> typesDeProduits = [
-    'Savon',
-    'Gommage',
-    'Lotion',
-    'Crème',
-    'Huile',
-    'Sérum',
-    'Masque',
-    'Shampooing',
-    'Lait',
-    'Mèche',
-    'Gellule',
-    'Parfum',
-    'Gel de Douche',
-    'Déodorant',
-    'Grattoir',
-  ];
-
+  
+  String? _selectedUnite = 'pcs';
   String? _selectedType;
   List<String> _typesDeProduits = [];
-  String? _selectedEtat;
   dynamic _image;
+  bool _isLoading = false;
   final ImagePicker _picker = ImagePicker();
 
   @override
   void initState() {
-    // TODO: implement initState
     super.initState();
     if (widget.produitId != null) {
       _chargerProduit(widget.produitId!);
@@ -65,49 +49,53 @@ class _AjouterProduitPageState extends State<AjouterProduitPage> {
   }
 
   Future<void> _chargerProduit(String produitId) async {
-    var doc = await FirebaseFirestore.instance
-        .collection('produits')
-        .doc(produitId)
-        .get();
-    if (doc.exists) {
-      var data = doc.data();
-      setState(() { //ligne 74
-        nomController.text = data?['nom'] ?? '';
-        prixController.text = data?['prixVente'].toString() ?? '';
-        quantiteController.text = data?['quantiteDisponible'].toString() ?? '';
-        seuilCritiqueController.text = data?['seuil_critique'].toString() ?? '';
-        seuilAlerteController.text = data?['seuil_alerte'].toString() ?? '';
-        codeBarreController.text = data?['code_barre'] ?? '';
-        gammeController.text = data?['gamme'] ?? '';
-        poidsController.text = data?['poids']?.toString() ?? ''; 
-        marketPriceController.text = data?['marketPrice'].toString() ?? '';
-        descriptionController.text = data?['description'] ?? '';
-        _selectedType = data?['type'];
-        _image = data?['imageUrl']; // Stocke l'URL existante de l'image
-        quantiteController.text = (data?['quantite'] as double?)?.toString() ?? '0'; //ligne 87
-        _selectedUnite = data?['unite']?.toString() ?? 'pcs'; 
-        prixDecideController.text = data?['prixDecide'].toString() ?? '';
-      });
+    setState(() => _isLoading = true);
+    try {
+      var doc = await FirebaseFirestore.instance.collection('produits').doc(produitId).get();
+      if (doc.exists) {
+        var data = doc.data();
+        setState(() {
+          nomController.text = data?['nom'] ?? '';
+          prixController.text = (data?['prixVente'] ?? '').toString();
+          quantiteController.text = (data?['quantite'] ?? '0').toString();
+          seuilCritiqueController.text = (data?['seuil_critique'] ?? '50').toString();
+          seuilAlerteController.text = (data?['seuil_alerte'] ?? '100').toString();
+          codeBarreController.text = data?['code_barre'] ?? '';
+          gammeController.text = data?['gamme'] ?? '';
+          poidsController.text = (data?['poids'] ?? '').toString(); 
+          marketPriceController.text = (data?['marketPrice'] ?? '').toString();
+          descriptionController.text = data?['description'] ?? '';
+          _selectedType = data?['type'];
+          _image = data?['imageUrl']; 
+          _selectedUnite = data?['unite'] ?? 'pcs'; 
+          prixDecideController.text = (data?['prixDecide'] ?? '').toString();
+        });
+      }
+    } finally {
+      setState(() => _isLoading = false);
     }
   }
 
-  /// Fonction pour scanner un code-barres
-  void scannerCodeBarre() async {
-    await showDialog(
+  Future<void> _fetchTypesDeProduits() async {
+    var snapshot = await FirebaseFirestore.instance.collection('types_produits').get();
+    setState(() {
+      _typesDeProduits = snapshot.docs.map((doc) => doc['nom'].toString()).toList();
+    });
+  }
+
+  void scannerCodeBarre() {
+    showDialog(
       context: context,
       builder: (context) => AlertDialog(
-        title: Text("Scanner le Code-Barres"),
-        content: Container(
+        title: const Text("Scanner Code-Barres"),
+        content: SizedBox(
           width: 300,
           height: 300,
           child: MobileScanner(
             onDetect: (capture) {
-              final List<Barcode> barcodes = capture.barcodes;
-              if (barcodes.isNotEmpty) {
-                setState(() {
-                  codeBarreController.text = barcodes.first.rawValue ?? "";
-                });
-                Navigator.pop(context); // Fermer la popup après scan
+              if (capture.barcodes.isNotEmpty) {
+                setState(() => codeBarreController.text = capture.barcodes.first.rawValue ?? "");
+                Navigator.pop(context);
               }
             },
           ),
@@ -116,466 +104,366 @@ class _AjouterProduitPageState extends State<AjouterProduitPage> {
     );
   }
 
-  ///la fonction pour rogner l'image
-
   Future<File?> cropImage(File imageFile) async {
-    final CroppedFile? croppedFile = await ImageCropper().cropImage(
+    final croppedFile = await ImageCropper().cropImage(
       sourcePath: imageFile.path,
-      // Style de rognage
       uiSettings: [
         AndroidUiSettings(
           toolbarTitle: 'Rogner l\'image',
-          toolbarColor: Colors.green,
+          toolbarColor: AppColors.accentColor,
           toolbarWidgetColor: Colors.white,
           lockAspectRatio: false,
         ),
-        IOSUiSettings(
-          title: 'Rogner l\'image',
-        ),
+        IOSUiSettings(title: 'Rogner l\'image'),
       ],
     );
-
-    if (croppedFile != null) {
-      return File(croppedFile.path);
-    }
-    return null;
+    return croppedFile != null ? File(croppedFile.path) : null;
   }
 
-  /// Fonction pour sélectionner une image depuis la galerie ou prendre une photo
   Future<void> pickImage() async {
     showModalBottomSheet(
       context: context,
-      builder: (context) => Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          ListTile(
-            leading: Icon(Icons.photo_library),
-            title: Text('Galerie'),
-            onTap: () async {
-              Navigator.pop(context);
-              final pickedFile =
-                  await _picker.pickImage(source: ImageSource.gallery);
-
-              if (pickedFile != null) {
-                File originalImage = File(pickedFile.path);
-                // Rogner l'image
-                File? croppedImage = await cropImage(originalImage);
-
-                if (croppedImage != null) {
-                  // Convertir en WebP après rognage
-                  File? webpImage = await convertImageToWebP(croppedImage);
-                  if (webpImage != null) {
-                    setState(() {
-                      _image = webpImage;
-                    });
-                  }
-                }
-              }
-            },
-          ),
-          ListTile(
-            leading: Icon(Icons.camera_alt),
-            title: Text('Appareil Photo'),
-            onTap: () async {
-              Navigator.pop(context);
-              final pickedFile =
-                  await _picker.pickImage(source: ImageSource.camera);
-
-              if (pickedFile != null) {
-                File originalImage = File(pickedFile.path);
-                // Rogner l'image
-                File? croppedImage = await cropImage(originalImage);
-
-                if (croppedImage != null) {
-                  // Convertir en WebP après rognage
-                  File? webpImage = await convertImageToWebP(croppedImage);
-                  if (webpImage != null) {
-                    setState(() {
-                      _image = webpImage;
-                    });
-                  }
-                }
-              }
-            },
-          ),
-        ],
+      shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(20))),
+      builder: (context) => SafeArea(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            ListTile(
+              leading:  Icon(Icons.photo_library, color: AppColors.accentColor),
+              title: const Text('Galerie'),
+              onTap: () async {
+                Navigator.pop(context);
+                final pickedFile = await _picker.pickImage(source: ImageSource.gallery);
+                if (pickedFile != null) _processPickedImage(File(pickedFile.path));
+              },
+            ),
+            ListTile(
+              leading:  Icon(Icons.camera_alt, color: AppColors.accentColor),
+              title: const Text('Appareil Photo'),
+              onTap: () async {
+                Navigator.pop(context);
+                final pickedFile = await _picker.pickImage(source: ImageSource.camera);
+                if (pickedFile != null) _processPickedImage(File(pickedFile.path));
+              },
+            ),
+          ],
+        ),
       ),
     );
   }
 
-  /// Fonction pour uploader l'image sur Supabase et récupérer l'URL
-  Future<String?> uploadImageToSupabase(File image) async {
-    try {
-      final supabase = Supabase.instance.client;
-      final String fileName =
-          "produits/${DateTime.now().millisecondsSinceEpoch}.webp"; // Enregistre en WebP
-      final response = await supabase.storage
-          .from("images") // Remplace "images" par le nom de ton bucket Supabase
-          .upload(fileName, image);
+  Future<void> _processPickedImage(File file) async {
+    File? cropped = await cropImage(file);
+    if (cropped != null) {
+      File? webp = await convertImageToWebP(cropped);
+      if (webp != null) setState(() => _image = webp);
+    }
+  }
 
-      if (response.isEmpty) throw Exception("Échec du téléversement");
-      final String publicUrl =
-          supabase.storage.from("images").getPublicUrl(fileName);
-      return publicUrl;
+  Future<String?> _uploadToFirebase(File file) async {
+    try {
+      final ref = FirebaseStorage.instance.ref().child('produits/${DateTime.now().millisecondsSinceEpoch}.webp');
+      await ref.putFile(file);
+      return await ref.getDownloadURL();
     } catch (e) {
-      print("Erreur lors du téléchargement de l'image: $e");
+      print("Erreur Upload: $e");
       return null;
     }
   }
 
-  /// Fonction pour enregistrer un produit dans Firestore
   Future<void> enregistrerProduit() async {
-    String gamme = gammeController.text;
-    String produitNom = nomController.text;
-    double prixVente = double.tryParse(prixController.text) ?? 0;
-    int seuilCritique = int.tryParse(seuilCritiqueController.text) ?? 0;
-    int seuilAlerte = int.tryParse(seuilAlerteController.text) ?? 0;
-    String codeBarre = codeBarreController.text;
-    int poids = int.tryParse(poidsController.text) ?? 0;
-    double marketPrice = double.tryParse(marketPriceController.text) ?? 0;
-    String description = descriptionController.text;
-    int prixDecide = int.tryParse(prixDecideController.text) ?? 0;
-    double quantite = double.tryParse(quantiteController.text) ?? 0;
-    String unite = _selectedUnite ?? 'pcs'; 
-    String docName = gamme + '_' + produitNom;
-
-    // Vérifier si une image a été sélectionnée
+    if (!_formKey.currentState!.validate()) return;
     if (_image == null) {
-      ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Veuillez sélectionner une image')));
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Veuillez ajouter une image')));
       return;
     }
 
-    // Uploader l'image et obtenir l'URL
-    String? imageUrl;
-    if (_image != null) {
+    setState(() => _isLoading = true);
+    try {
+      String? imageUrl;
       if (_image is File) {
-        // Cas où c'est une nouvelle image à uploader
-        imageUrl =
-            await uploadImageToSupabase(_image as File); // ligne 254 modifiée
-        if (imageUrl == null) {
-          ScaffoldMessenger.of(context).showSnackBar(
-              SnackBar(content: Text('Erreur lors de l\'upload de l\'image')));
-          return;
-        }
-      } else if (_image is String) {
-        // Cas où c'est déjà une URL existante
+        imageUrl = await _uploadToFirebase(_image as File);
+        if (imageUrl == null) throw Exception("Échec de l'upload");
+      } else {
         imageUrl = _image as String;
       }
+
+      Map<String, dynamic> data = {
+        'gamme': gammeController.text.trim(),
+        'nom': nomController.text.trim(),
+        'type': _selectedType,
+        'prixVente': double.tryParse(prixController.text) ?? 0,
+        'seuil_critique': int.tryParse(seuilCritiqueController.text) ?? 50,
+        'seuil_alerte': int.tryParse(seuilAlerteController.text) ?? 100,
+        'code_barre': codeBarreController.text.trim(),
+        'imageUrl': imageUrl,
+        'poids': int.tryParse(poidsController.text) ?? 0,
+        'marketPrice': double.tryParse(marketPriceController.text) ?? 0,
+        'description': descriptionController.text.trim(),
+        'prixDecide': int.tryParse(prixDecideController.text) ?? 0,
+        'quantite': double.tryParse(quantiteController.text) ?? 0,
+        'unite': _selectedUnite,
+      };
+
+      String docId = widget.produitId ?? "${data['gamme']}_${data['nom']}";
+      
+      await FirebaseFirestore.instance.collection('produits').doc(docId).set(data, SetOptions(merge: true));
+
+      // Mise à jour synchrone du PVP dans les stocks si modification
+      if (data['prixDecide'] > 0) {
+        await _updatePvpInStocks(data['nom'], data['prixDecide']);
+      }
+
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar( SnackBar(content: Text('Produit enregistré !'), backgroundColor: AppColors.priceColor));
+      Navigator.pop(context);
+    } catch (e) {
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Erreur: $e'), backgroundColor: AppColors.criticalColor));
+    } finally {
+      if (mounted) setState(() => _isLoading = false);
     }
+  }
 
-    Map<String, dynamic> produitData = {
-      'gamme': gamme,
-      'nom': produitNom,
-      'type': _selectedType,
-      'prixVente': prixVente,
-      'seuil_critique': seuilCritique,
-      'seuil_alerte': seuilAlerte,
-      'code_barre': codeBarre,
-      'imageUrl': imageUrl, // Stocker l'URL de l'image dans Firestore
-      'poids': poids,
-      'marketPrice': marketPrice,
-      'description': description,
-      'prixDecide': prixDecide,
-      // Nouveaux champs
-      'quantite': quantite,
-      'unite': unite,
-    };
-
-    if (widget.produitId == null) {
-      // Création d'un nouveau produit
-      await FirebaseFirestore.instance
-          .collection('produits')
-          .doc(docName)
-          .set(produitData);
-    } else {
-      // Mise à jour d'un produit existant
-      await FirebaseFirestore.instance
-          .collection('produits')
-          .doc(widget.produitId)
-          .update(produitData);
-    }
-
-    // Fonction interne pour rechercher et mettre à jour le champ 'pvp' dans une collection
-    // Fonction pour rechercher et mettre à jour le champ 'pvp' tout en conservant l'ancien prix
-    Future<void> updatePvpInCollection(String collectionName) async {
-      final querySnapshot = await FirebaseFirestore.instance
-          .collection(collectionName)
-          .where('nom', isEqualTo: produitNom)
-          .get();
-
-      for (var doc in querySnapshot.docs) {
-        final currentData = doc.data();
-        final ancienPvp = currentData['pvp'];
-
-        await doc.reference.update({
-          'oldPvp': ancienPvp, // Sauvegarder l'ancien pvp
-          'pvp': prixDecide, // Mettre à jour le nouveau pvp
-          'lastUpdated': FieldValue
-              .serverTimestamp(), // Optionnel : trace de la date de mise à jour
-        });
-
-        print(
-            'Mise à jour de $collectionName : ancien pvp = $ancienPvp, nouveau pvp = $prixDecide');
+  Future<void> _updatePvpInStocks(String nom, int newPvp) async {
+    for (String col in ['stock', 'stockBoutique']) {
+      final query = await FirebaseFirestore.instance.collection(col).where('nom', isEqualTo: nom).get();
+      for (var doc in query.docs) {
+        await doc.reference.update({'oldPvp': doc['pvp'], 'pvp': newPvp});
       }
     }
-
-    // 🔁 Mise à jour dans les deux collections : stock et stockBoutique
-    await updatePvpInCollection('stock');
-    await updatePvpInCollection('stockBoutique');
-
-    showDialog(
-      context: context,
-      builder: (BuildContext context) {
-        return AlertDialog(
-          title: Text("Succès"),
-          content: Text("Produit enregistré avec succès !"),
-          actions: [
-            TextButton(
-              onPressed: () {
-                Navigator.of(context).pop();
-              },
-              child: Text("OK"),
-            ),
-          ],
-        );
-      },
-    );
-    print("Produit ajouté : $produitData");
-  }
-
-  // Fonction pour récupérer les types de produits depuis Firestore
-  Future<void> _fetchTypesDeProduits() async {
-    try {
-      var snapshot =
-          await FirebaseFirestore.instance.collection('types_produits').get();
-
-      List<String> types = snapshot.docs
-          .map((doc) => doc['nom']
-              .toString()) // Vérifier que 'nom' est bien le champ contenant le type
-          .toList();
-
-      setState(() {
-        _typesDeProduits = types;
-      });
-    } catch (e) {
-      print("Erreur lors du chargement des types de produits : $e");
-    }
-  }
-
-// Fonction pour ajouter une nouvelle catégorie
-  Future<void> _ajouterNouvelleCategorie(BuildContext context) async {
-    String nouvelleCategorie = "";
-    showDialog(
-      context: context,
-      builder: (BuildContext context) {
-        return AlertDialog(
-          title: Text("Ajouter une nouvelle catégorie"),
-          content: TextField(
-            decoration: InputDecoration(hintText: "Nom de la catégorie"),
-            onChanged: (value) {
-              nouvelleCategorie = value.trim();
-            },
-          ),
-          actions: [
-            TextButton(
-              child: Text("Annuler"),
-              onPressed: () => Navigator.pop(context),
-            ),
-            TextButton(
-              child: Text("Ajouter"),
-              onPressed: () async {
-                if (nouvelleCategorie.isNotEmpty &&
-                    !_typesDeProduits.contains(nouvelleCategorie)) {
-                  try {
-                    // Ajouter dans Firestore
-                    await FirebaseFirestore.instance
-                        .collection('types_produits')
-                        .doc(nouvelleCategorie)
-                        .set({'nom': nouvelleCategorie});
-
-                    // Mettre à jour la liste et sélectionner la nouvelle catégorie
-                    setState(() {
-                      _typesDeProduits.add(nouvelleCategorie);
-                      _selectedType = nouvelleCategorie;
-                    });
-
-                    Navigator.pop(context);
-                  } catch (e) {
-                    print("Erreur lors de l'ajout : $e");
-                  }
-                }
-              },
-            ),
-          ],
-        );
-      },
-    );
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(
-        title: Text("Ajouter un Produit"),
-        backgroundColor: Colors.blue.shade800, // Bleu foncé pour un aspect pro
-        centerTitle: true,
-        elevation: 4,
-      ),
-      body: Padding(
-        padding: EdgeInsets.all(16.0),
-        child: SingleChildScrollView(
-          child: Column(
-            children: [
-              TextField(
-                  controller: gammeController,
-                  decoration: InputDecoration(labelText: "Gamme")),
-              TextField(
-                  controller: nomController,
-                  decoration: InputDecoration(labelText: "Variété")),
-              // Sélecteur du type de produit
-              DropdownButtonFormField<String>(
-                decoration: InputDecoration(labelText: "Catégorie"),
-                value: _selectedType,
-                onChanged: (newValue) {
-                  if (newValue == "Ajouter une catégorie") {
-                    _ajouterNouvelleCategorie(context);
-                  } else {
-                    setState(() {
-                      _selectedType = newValue;
-                    });
-                  }
-                },
-                items: [
-                  ..._typesDeProduits.map((String type) {
-                    return DropdownMenuItem<String>(
-                      value: type,
-                      child: Text(type),
-                    );
-                  }).toList(),
-                  DropdownMenuItem<String>(
-                    value: "Ajouter une catégorie",
-                    child: Row(
+      backgroundColor: AppColors.backgroundColor,
+      body: SafeArea(
+        child: Stack(
+          children: [
+            SingleChildScrollView(
+              padding: const EdgeInsets.all(24),
+              child: Form(
+                key: _formKey,
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    HeaderSection(
+                      title: widget.produitId == null ? 'Nouveau Produit' : 'Modifier Produit',
+                      subtitle: 'Gérez les détails de l\'article',
+                    ),
+                    const SizedBox(height: 24),
+                    
+                    _buildImagePicker(),
+                    const SizedBox(height: 32),
+
+                    _sectionTitle('Informations Générales'),
+                    _buildTextField(nomController, 'Nom du produit (Variété)', Icons.inventory_2_outlined),
+                    _buildTextField(gammeController, 'Gamme / Marque', Icons.branding_watermark_outlined),
+                    _buildTypeDropdown(),
+                    _buildTextField(descriptionController, 'Description (Usage/Composition)', Icons.description_outlined, maxLines: 3),
+
+                    const Divider(height: 48),
+                    _sectionTitle('Prix & Stock'),
+                    Row(
                       children: [
-                        Icon(Icons.add, color: Colors.green),
-                        SizedBox(width: 8),
-                        Text("Ajouter une catégorie"),
+                        Expanded(child: _buildTextField(quantiteController, 'Quantité', Icons.numbers, keyboardType: TextInputType.number)),
+                        const SizedBox(width: 12),
+                        Expanded(child: _buildUniteDropdown()),
                       ],
                     ),
-                  ),
-                ],
-              ),
-              /* TextField(
-                  controller: prixController,
-                  decoration: InputDecoration(labelText: "Prix de vente"),
-                  keyboardType: TextInputType.number),*/
-              Row(
-                children: [
-                  Expanded(
-                    flex: 2,
-                    child: TextField(
-                      controller: quantiteController,
-                      decoration: InputDecoration(
-                        labelText: "Quantité",
-                        border: OutlineInputBorder(),
-                      ),
-                      keyboardType: TextInputType.number,
-                    ),
-                  ),
-                  SizedBox(width: 10),
-                  Expanded(
-                    flex: 1,
-                    child: DropdownButtonFormField<String>(
-                      decoration: InputDecoration(
-                        labelText: "Unité",
-                        border: OutlineInputBorder(),
-                      ),
-                      value: _selectedUnite,
-                      onChanged: (newValue) =>
-                          setState(() => _selectedUnite = newValue),
-                      items: const [
-                        DropdownMenuItem(value: 'g', child: Text('g')),
-                        DropdownMenuItem(value: 'ml', child: Text('ml')),
-                        DropdownMenuItem(value: 'pcs', child: Text('pcs')),
+                    _buildTextField(marketPriceController, 'Prix Marché (FCFA)', Icons.store_outlined, keyboardType: TextInputType.number),
+                    if (widget.produitId != null) 
+                      _buildTextField(prixDecideController, 'Prix Décidé (FCFA)', Icons.check_circle_outline, keyboardType: TextInputType.number),
+
+                    const Divider(height: 48),
+                    _sectionTitle('Alertes & Technique'),
+                    Row(
+                      children: [
+                        Expanded(child: _buildTextField(seuilCritiqueController, 'Seuil Critique', Icons.warning_amber_rounded, keyboardType: TextInputType.number)),
+                        const SizedBox(width: 12),
+                        Expanded(child: _buildTextField(seuilAlerteController, 'Seuil Alerte', Icons.notifications_active_outlined, keyboardType: TextInputType.number)),
                       ],
                     ),
-                  ),
-                ],
-              ),
-              TextField(
-                controller: descriptionController,
-                decoration: InputDecoration(
-                    labelText: "Description(usage et/ou composition)"),
-              ),
-              TextField(
-                  controller: seuilCritiqueController,
-                  decoration: InputDecoration(labelText: "Seuil critique"),
-                  keyboardType: TextInputType.number),
-              TextField(
-                  controller: seuilAlerteController,
-                  decoration: InputDecoration(labelText: "Seuil alerte"),
-                  keyboardType: TextInputType.number),
-              TextField(
-                  controller: marketPriceController,
-                  decoration: InputDecoration(
-                      labelText: "Prix de vente du marché(en FCFA)"),
-                  keyboardType: TextInputType.number),
-              if (widget.produitId != null)
-                TextField(
-                  controller: prixDecideController,
-                  decoration:
-                      InputDecoration(labelText: "Prix Décidé(en FCFA)"),
-                  keyboardType: TextInputType.number,
+                    _buildBarcodeField(),
+                    _buildTextField(poidsController, 'Poids / Volume numérique', Icons.scale_outlined, keyboardType: TextInputType.number),
+
+                    const SizedBox(height: 120),
+                  ],
                 ),
-              Row(
-                children: [
-                  Expanded(
-                    child: TextField(
-                      controller: codeBarreController,
-                      decoration: InputDecoration(labelText: "Code-Barres"),
-                      readOnly: true,
-                    ),
-                  ),
-                  IconButton(
-                    icon: Icon(Icons.qr_code_scanner),
-                    onPressed: scannerCodeBarre,
-                  ),
-                ],
               ),
-
-              SizedBox(height: 20),
-
-              // Bouton pour sélectionner une image
-              Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  ElevatedButton(
-                      onPressed: pickImage,
-                      child: Column(
-                        children: [Icon(Icons.image), Text("Image")],
-                      )),
-                  if (_image != null)
-                    Padding(
-                      padding: const EdgeInsets.symmetric(vertical: 10),
-                      child: _image is String // Vérifie si c'est une URL
-                          ? Image.network(_image as String,
-                              height: 150) // Affiche l'image depuis Firestore
-                          : Image.file(_image as File,
-                              height: 150), // Affiche depuis le stockage local
-                    ),
-                ],
-              ),
-
-              SizedBox(height: 20),
-
-              ElevatedButton(
-                onPressed: enregistrerProduit,
-                child: Text("Enregistrer"),
-              ),
-            ],
-          ),
+            ),
+            if (_isLoading) Container(color: Colors.black26, child:  Center(child: CircularProgressIndicator(color: AppColors.accentColor))),
+          ],
         ),
       ),
+      bottomNavigationBar: _buildBottomAction(),
+    );
+  }
+
+  Widget _sectionTitle(String title) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 16),
+      child: Text(title, style:  TextStyle(fontSize: 16, fontWeight: FontWeight.w900, color: AppColors.primaryTextColor)),
+    );
+  }
+
+  Widget _buildImagePicker() {
+    return Center(
+      child: GestureDetector(
+        onTap: pickImage,
+        child: Container(
+          height: 180,
+          width: double.infinity,
+          decoration: BoxDecoration(
+            color: AppColors.cardColor,
+            borderRadius: BorderRadius.circular(20),
+            border: Border.all(color: Colors.grey.shade200),
+            boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.02), blurRadius: 10)]
+          ),
+          child: _image == null
+              ?  Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    Icon(Icons.add_a_photo_outlined, size: 48, color: AppColors.accentColor),
+                    SizedBox(height: 8),
+                    Text('Ajouter une photo', style: TextStyle(color: AppColors.secondaryTextColor)),
+                  ],
+                )
+              : ClipRRect(
+                  borderRadius: BorderRadius.circular(20),
+                  child: Stack(
+                    fit: StackFit.expand,
+                    children: [
+                      _image is File ? Image.file(_image as File, fit: BoxFit.cover) : Image.network(_image as String, fit: BoxFit.cover),
+                      Positioned(
+                        right: 8, top: 8,
+                        child: CircleAvatar(
+                          backgroundColor: Colors.black54,
+                          child: IconButton(icon: const Icon(Icons.edit, color: Colors.white), onPressed: pickImage),
+                        ),
+                      )
+                    ],
+                  ),
+                ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildTextField(TextEditingController controller, String label, IconData icon, {TextInputType? keyboardType, int maxLines = 1}) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 16),
+      child: TextFormField(
+        controller: controller,
+        maxLines: maxLines,
+        keyboardType: keyboardType,
+        decoration: InputDecoration(
+          labelText: label,
+          prefixIcon: Icon(icon, color: AppColors.accentColor, size: 20),
+          filled: true,
+          fillColor: AppColors.cardColor,
+          border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide(color: Colors.grey.shade100)),
+          enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide(color: Colors.grey.shade100)),
+        ),
+        validator: (v) => v!.isEmpty ? 'Requis' : null,
+      ),
+    );
+  }
+
+  Widget _buildBarcodeField() {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 16),
+      child: Row(
+        children: [
+          Expanded(child: _buildTextField(codeBarreController, 'Code-Barres', Icons.qr_code_outlined)),
+          const SizedBox(width: 8),
+          Container(
+            margin: const EdgeInsets.only(bottom: 16),
+            height: 56,
+            width: 56,
+            decoration: BoxDecoration(color: AppColors.accentColor, borderRadius: BorderRadius.circular(12)),
+            child: IconButton(icon: const Icon(Icons.qr_code_scanner, color: Colors.white), onPressed: scannerCodeBarre),
+          )
+        ],
+      ),
+    );
+  }
+
+  Widget _buildTypeDropdown() {
+     return Padding(
+      padding: const EdgeInsets.only(bottom: 16),
+      child: DropdownButtonFormField<String>(
+        value: _selectedType,
+        decoration: InputDecoration(
+          labelText: 'Catégorie',
+          prefixIcon:  Icon(Icons.category_outlined, color: AppColors.accentColor),
+          filled: true, fillColor: AppColors.cardColor,
+          border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+        ),
+        items: [
+          ..._typesDeProduits.map((t) => DropdownMenuItem(value: t, child: Text(t))),
+           DropdownMenuItem(value: 'ADD_NEW', child: Text('+ Ajouter catégorie', style: TextStyle(color: AppColors.priceColor))),
+        ],
+        onChanged: (val) {
+          if (val == 'ADD_NEW') _promptNewCategory();
+          else setState(() => _selectedType = val);
+        },
+      ),
+    );
+  }
+
+  Widget _buildUniteDropdown() {
+    return DropdownButtonFormField<String>(
+      value: _selectedUnite,
+      decoration: InputDecoration(
+        labelText: 'Unité',
+        filled: true, fillColor: AppColors.cardColor,
+        border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+      ),
+      items: ['pcs', 'g', 'ml', 'kg', 'L'].map((u) => DropdownMenuItem(value: u, child: Text(u))).toList(),
+      onChanged: (val) => setState(() => _selectedUnite = val),
+    );
+  }
+
+  Widget _buildBottomAction() {
+    return Container(
+      padding: const EdgeInsets.all(20),
+      decoration: BoxDecoration(color: AppColors.cardColor, boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.05), blurRadius: 10, offset: const Offset(0, -4))]),
+      child: SafeArea(
+        child: ElevatedButton(
+          onPressed: _isLoading ? null : enregistrerProduit,
+          style: ElevatedButton.styleFrom(
+            backgroundColor: AppColors.accentColor,
+            padding: const EdgeInsets.symmetric(vertical: 16),
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+          ),
+          child: const Text('Enregistrer le Produit', style: TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.bold)),
+        ),
+      ),
+    );
+  }
+
+  void _promptNewCategory() {
+    String newCat = "";
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Nouvelle Catégorie'),
+        content: TextField(onChanged: (v) => newCat = v.trim(), decoration: const InputDecoration(hintText: 'Nom...')),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Annuler')),
+          TextButton(
+            onPressed: () async {
+              if (newCat.isNotEmpty) {
+                await FirebaseFirestore.instance.collection('types_produits').doc(newCat).set({'nom': newCat});
+                setState(() { _typesDeProduits.add(newCat); _selectedType = newCat; });
+                Navigator.pop(ctx);
+              }
+            }, 
+            child: const Text('Ajouter')
+          ),
+        ],
+      )
     );
   }
 }

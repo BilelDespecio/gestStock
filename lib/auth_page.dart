@@ -7,6 +7,10 @@ import 'package:open_file/open_file.dart';
 import 'package:permission_handler/permission_handler.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:package_info_plus/package_info_plus.dart';
+import 'package:path_provider/path_provider.dart';
+import 'dart:io';
+import 'package:gest_stock/newVersion/vendeur/constants.dart';
+import 'package:gest_stock/newVersion/menu/theme_controller.dart';
 
 class AuthPage extends StatefulWidget {
   @override
@@ -21,8 +25,51 @@ class _AuthPageState extends State<AuthPage> {
   final SupabaseClient supabase = Supabase.instance.client;
   bool _obscurePassword = true;
   String _errorMessage = '';
+  bool _isLoading = false;
+
+  @override
+  void initState() {
+    super.initState();
+    FlutterDownloader.registerCallback(downloadCallback);
+  }
+
+  void _showError(String message) {
+    setState(() {
+      _errorMessage = message;
+      _isLoading = false;
+    });
+  }
+
+  String _mapFirebaseError(String code) {
+    switch (code) {
+      case 'user-not-found':
+        return "Aucun utilisateur trouvé pour cet email.";
+      case 'wrong-password':
+        return "Mot de passe incorrect.";
+      case 'invalid-email':
+        return "L'adresse email n'est pas valide.";
+      case 'user-disabled':
+        return "Ce compte a été désactivé.";
+      case 'network-request-failed':
+        return "Erreur de connexion réseau. Vérifiez votre Internet.";
+      case 'too-many-requests':
+        return "Trop de tentatives. Réessayez plus tard.";
+      default:
+        return "Une erreur s'est produite lors de la connexion.";
+    }
+  }
 
   Future<void> _authenticate() async {
+    if (_emailController.text.isEmpty || _passwordController.text.isEmpty) {
+      _showError("Veuillez remplir tous les champs.");
+      return;
+    }
+
+    setState(() {
+      _isLoading = true;
+      _errorMessage = '';
+    });
+
     try {
       // Connexion de l'utilisateur
       UserCredential userCredential = await _auth.signInWithEmailAndPassword(
@@ -54,18 +101,12 @@ class _AuthPageState extends State<AuthPage> {
           });
         }
       } else {
-        setState(() {
-          _errorMessage = 'Utilisateur non trouvé. Contactez l’administrateur.';
-        });
+        _showError('Utilisateur non trouvé. Contactez l’administrateur.');
       }
     } on FirebaseAuthException catch (e) {
-      setState(() {
-        _errorMessage = e.message ?? 'Une erreur s’est produite.';
-      });
+      _showError(_mapFirebaseError(e.code));
     } catch (e) {
-      setState(() {
-        _errorMessage = 'Erreur inattendue : ${e.toString()}';
-      });
+      _showError('Erreur inattendue : ${e.toString()}');
     }
   }
 
@@ -160,160 +201,262 @@ class _AuthPageState extends State<AuthPage> {
   /// Télécharge et installe l'APK
   Future<void> _downloadAndInstallApk(String apkUrl) async {
     await requestPermissions();
-    await FlutterDownloader.initialize(debug: true);
-
-    // 🔹 Enregistre le callback global
-    FlutterDownloader.registerCallback(downloadCallback);
+    
+    // Obtenir le dossier de téléchargement
+    String? downloadsPath;
+    if (Platform.isAndroid) {
+      downloadsPath = '/storage/emulated/0/Download';
+      final dir = Directory(downloadsPath);
+      if (!await dir.exists()) {
+        final externalDir = await getExternalStorageDirectory();
+        downloadsPath = externalDir?.path ?? (await getApplicationDocumentsDirectory()).path;
+      }
+    } else {
+      downloadsPath = (await getApplicationDocumentsDirectory()).path;
+    }
 
     await FlutterDownloader.enqueue(
       url: apkUrl,
-      savedDir: '/storage/emulated/0/Download',
+      savedDir: downloadsPath,
       fileName: 'app_update.apk',
       showNotification: true,
       openFileFromNotification: true,
+      saveInPublicStorage: true, // Pour le dossier Downloads
     );
   }
 
   @override
   Widget build(BuildContext context) {
-    const String imagePath =
-        'assets/images/logo.png'; // Remplace par ton chemin
+    const String imagePath = 'assets/images/logo.png';
 
-    return Scaffold(
-      backgroundColor: Colors.white, // Fond propre et clair
-      appBar: AppBar(
-        backgroundColor: Colors.white,
-        actions: [
-          IconButton(
-            onPressed: checkForUpdate,
-            icon: Icon(Icons.cloud_upload),
-          ),
-        ],
-      ),
-      body: Padding(
-        padding: const EdgeInsets.fromLTRB(20, 0, 20, 0),
-        child: Center(
-          child: SingleChildScrollView(
-            child: Column(
-              //mainAxisAlignment: MainAxisAlignment.center,
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                // FutureBuilder pour charger l'image
-                FutureBuilder<bool>(
-                  future: _imageExists(imagePath),
-                  builder: (context, snapshot) {
-                    if (snapshot.connectionState == ConnectionState.waiting) {
-                      return CircularProgressIndicator(); // Chargement
-                    } else if (snapshot.hasError || !snapshot.data!) {
-                      return Image.asset(
-                        imagePath,
-                        //width: 90,
-                        //height: 90,
-                        fit: BoxFit.cover,
-                      );
-                    } else {
-                      return Image.asset(
-                        imagePath,
-                        //width: 90,
-                        //height: 90,
-                        fit: BoxFit.cover,
-                      );
-                    }
-                  },
-                ),
-                SizedBox(height: 40),
-                Text(
-                  'Connexion',
-                  textAlign: TextAlign.center,
-                  style: TextStyle(
-                    fontSize: 24,
-                    fontWeight: FontWeight.bold,
-                    color: Colors.blue.shade800,
-                  ),
-                ),
-                SizedBox(height: 15),
-                // Champ Email
-                TextField(
-                  controller: _emailController,
-                  keyboardType: TextInputType.emailAddress,
-                  decoration: InputDecoration(
-                    labelText: 'Email',
-                    prefixIcon: Icon(Icons.email, color: Colors.blue.shade800),
-                    border: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(12),
-                    ),
-                  ),
-                ),
-                SizedBox(height: 16),
-
-                // Champ Mot de passe
-
-                TextField(
-                  controller: _passwordController,
-                  obscureText: _obscurePassword,
-                  decoration: InputDecoration(
-                    labelText: 'Mot de passe',
-                    prefixIcon: Icon(Icons.lock, color: Colors.blue.shade800),
-                    border: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(12),
-                    ),
-                    suffixIcon: IconButton(
-                      icon: Icon(
-                        _obscurePassword
-                            ? Icons.visibility
-                            : Icons.visibility_off,
-                        color: Colors.grey,
+    return ListenableBuilder(
+      listenable: themeController,
+      builder: (context, _) {
+        final isDark = themeController.isDarkMode;
+        
+        return Scaffold(
+          backgroundColor: AppColors.backgroundColor,
+          body: Stack(
+            children: [
+              SafeArea(
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 20),
+                  child: Column(
+                    children: [
+                      Expanded(
+                        child: Center(
+                          child: SingleChildScrollView(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.stretch,
+                              children: [
+                                // Animation du Logo
+                                TweenAnimationBuilder<double>(
+                                  duration: const Duration(milliseconds: 800),
+                                  tween: Tween(begin: 0.8, end: 1.0),
+                                  builder: (context, value, child) {
+                                    return Transform.scale(
+                                      scale: value,
+                                      child: child,
+                                    );
+                                  },
+                                  child: Image.asset(
+                                    imagePath,
+                                    height: 120,
+                                    fit: BoxFit.contain,
+                                  ),
+                                ),
+                                const SizedBox(height: 40),
+                                Text(
+                                  'Connexion',
+                                  textAlign: TextAlign.center,
+                                  style: TextStyle(
+                                    fontSize: 28,
+                                    fontWeight: FontWeight.bold,
+                                    color: AppColors.primaryTextColor,
+                                  ),
+                                ),
+                                const SizedBox(height: 8),
+                                Text(
+                                  'Veuillez vous identifier pour continuer',
+                                  textAlign: TextAlign.center,
+                                  style: TextStyle(
+                                    fontSize: 14,
+                                    color: AppColors.secondaryTextColor,
+                                  ),
+                                ),
+                                const SizedBox(height: 40),
+                                // Champ Email
+                                _buildTextField(
+                                  controller: _emailController,
+                                  label: 'Email',
+                                  icon: Icons.email_outlined,
+                                  isDark: isDark,
+                                  keyboardType: TextInputType.emailAddress,
+                                ),
+                                const SizedBox(height: 20),
+                                // Champ Mot de passe
+                                _buildTextField(
+                                  controller: _passwordController,
+                                  label: 'Mot de passe',
+                                  icon: Icons.lock_outline,
+                                  isDark: isDark,
+                                  obscureText: _obscurePassword,
+                                  suffixIcon: IconButton(
+                                    icon: Icon(
+                                      _obscurePassword ? Icons.visibility_off : Icons.visibility,
+                                      color: AppColors.secondaryTextColor,
+                                    ),
+                                    onPressed: () => setState(() => _obscurePassword = !_obscurePassword),
+                                  ),
+                                ),
+                                const SizedBox(height: 30),
+                                // Bouton Se connecter
+                                ElevatedButton(
+                                  onPressed: _isLoading ? null : _authenticate,
+                                  style: ElevatedButton.styleFrom(
+                                    backgroundColor: AppColors.accentColor,
+                                    foregroundColor: Colors.white,
+                                    padding: const EdgeInsets.symmetric(vertical: 16),
+                                    shape: RoundedRectangleBorder(
+                                      borderRadius: BorderRadius.circular(16),
+                                    ),
+                                    elevation: 2,
+                                  ),
+                                  child: _isLoading
+                                      ? const SizedBox(
+                                          height: 24,
+                                          width: 24,
+                                          child: CircularProgressIndicator(
+                                            color: Colors.white,
+                                            strokeWidth: 2,
+                                          ),
+                                        )
+                                      : const Text(
+                                          'Se connecter',
+                                          style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+                                        ),
+                                ),
+                                // Affichage de l'erreur
+                                if (_errorMessage.isNotEmpty)
+                                  Padding(
+                                    padding: const EdgeInsets.only(top: 20),
+                                    child: Container(
+                                      padding: const EdgeInsets.all(12),
+                                      decoration: BoxDecoration(
+                                        color: AppColors.criticalColor.withOpacity(0.1),
+                                        borderRadius: BorderRadius.circular(12),
+                                        border: Border.all(color: AppColors.criticalColor.withOpacity(0.3)),
+                                      ),
+                                      child: Text(
+                                        _errorMessage,
+                                        textAlign: TextAlign.center,
+                                        style: TextStyle(color: AppColors.criticalColor, fontSize: 14),
+                                      ),
+                                    ),
+                                  ),
+                              ],
+                            ),
+                          ),
+                        ),
                       ),
-                      onPressed: () {
-                        setState(() {
-                          _obscurePassword = !_obscurePassword;
-                        });
-                      },
+                      // Footer Développeur
+                      Padding(
+                        padding: const EdgeInsets.symmetric(vertical: 20),
+                        child: Column(
+                          children: [
+                            Row(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            Icon(
+                              Icons.rocket_launch_rounded,
+                              size: 16,
+                              color: AppColors.secondaryTextColor,
+                            ),
+                            const SizedBox(width: 8),
+                            Text(
+                              'Développé par ',
+                              style: TextStyle(
+                                color: AppColors.secondaryTextColor,
+                                fontSize: 12,
+                              ),
+                            ),
+                            Text(
+                              'HOBELIOS',
+                              style: TextStyle(
+                                color: AppColors.accentColor,
+                                fontSize: 12,
+                                fontWeight: FontWeight.bold,
+                              ),
+                            ),
+                          ],
+                        ),
+                        Text(
+                          'v1.5.0',
+                          style: TextStyle(
+                            color: AppColors.secondaryTextColor,
+                            fontSize: 12,
+                          ),
+                        ),
+                          ],
+                        )
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+              // Bouton mise à jour (discret en haut)
+              Align(
+                alignment: Alignment.topRight,
+                child: SafeArea(
+                  child: Padding(
+                    padding: const EdgeInsets.all(8.0),
+                    child: IconButton(
+                      onPressed: checkForUpdate,
+                      icon: Icon(Icons.system_update_alt, color: AppColors.accentColor),
+                      tooltip: 'Vérifier les mises à jour',
                     ),
                   ),
                 ),
-                SizedBox(height: 20),
-
-                // Bouton Se connecter
-                ElevatedButton(
-                  onPressed: _authenticate,
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: Colors.blue.shade800,
-                    padding: EdgeInsets.symmetric(vertical: 16),
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(12),
-                    ),
-                  ),
-                  child: Text(
-                    'Se connecter',
-                    style: TextStyle(fontSize: 18, color: Colors.white),
-                  ),
-                ),
-
-                /* // Lien Mot de passe oublié
-                TextButton(
-                  onPressed: () {
-                    // Action pour mot de passe oublié
-                  },
-                  child: Text(
-                    "Mot de passe oublié ?",
-                    style: TextStyle(color: Colors.blue.shade800),
-                  ),
-                ),
-*/
-                // Affichage de l'erreur
-                if (_errorMessage.isNotEmpty)
-                  Padding(
-                    padding: const EdgeInsets.only(top: 10),
-                    child: Text(
-                      _errorMessage,
-                      textAlign: TextAlign.center,
-                      style: TextStyle(color: Colors.red, fontSize: 16),
-                    ),
-                  ),
-              ],
-            ),
+              ),
+            ],
           ),
+        );
+      },
+    );
+  }
+
+  Widget _buildTextField({
+    required TextEditingController controller,
+    required String label,
+    required IconData icon,
+    required bool isDark,
+    bool obscureText = false,
+    Widget? suffixIcon,
+    TextInputType? keyboardType,
+  }) {
+    return TextField(
+      controller: controller,
+      obscureText: obscureText,
+      keyboardType: keyboardType,
+      style: TextStyle(color: AppColors.primaryTextColor),
+      decoration: InputDecoration(
+        labelText: label,
+        labelStyle: TextStyle(color: AppColors.secondaryTextColor),
+        prefixIcon: Icon(icon, color: AppColors.accentColor),
+        suffixIcon: suffixIcon,
+        filled: true,
+        fillColor: isDark ? const Color(0xFF1E1E1E) : Colors.white,
+        border: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(16),
+          borderSide: BorderSide.none,
+        ),
+        enabledBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(16),
+          borderSide: BorderSide(color: AppColors.accentColor.withOpacity(0.1)),
+        ),
+        focusedBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(16),
+          borderSide: BorderSide(color: AppColors.accentColor, width: 2),
         ),
       ),
     );
